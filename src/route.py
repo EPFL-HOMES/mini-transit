@@ -64,6 +64,7 @@ class Route:
         
         return latest_end - earliest_start
     
+    #TODO: implement fare calculation logic that isn't just total minutes
     def _calculate_total_fare(self) -> float:
         """
         Calculate total fare for this route.

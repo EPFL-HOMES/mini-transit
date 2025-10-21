@@ -85,3 +85,4 @@ class Walk(Action):
     
     def __repr__(self):
         return f"Walk(start_time={self.start_time}, start_hex={self.start_hex}, end_hex={self.end_hex}, walk_speed={self.walk_speed})"
+        

@@ -6,6 +6,7 @@ import networkx as nx
 import sys
 import os
 import json
+from walk import Walk
 
 # Add parent directory to path to import utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

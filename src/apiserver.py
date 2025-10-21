@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.network import Network
 from src.demand import Demand
 from src.hex import Hex
+from .walk import Walk
 
 class APIServer:
     """
