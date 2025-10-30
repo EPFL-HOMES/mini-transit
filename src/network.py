@@ -33,6 +33,22 @@ class Network:
         self.graph = utils.construct_graph(geojson_file_path)
         self.services = []  # Will be populated later
         self.routes_taken = []  # Will be populated during simulation
+        
+    def get_distance(self, start_hex, end_hex) -> int:
+        """
+        Get the distance in hexagons between two hexes using the network graph.
+        
+        Args:
+            start_hex (Hex): The starting hexagon.
+            end_hex (Hex): The destination hexagon.
+        Returns:
+            int: Distance in hexagons.
+        """
+        try:
+            length = nx.shortest_path_length(self.graph, start_hex.hex_id, end_hex.hex_id)
+            return length
+        except nx.NetworkXNoPath:
+            return float('inf')  # No path exists
     
     def get_optimal_route(self, demand):
         """

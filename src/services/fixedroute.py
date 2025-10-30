@@ -6,18 +6,29 @@ from src.actions import Wait, Ride
 from src.hex import Hex
 from src.network import Network
 from typing import List, Tuple, Dict, OrderedDict as TypingOrderedDict
-from collections import OrderedDict
 
 
 
 class FixedRouteService(Service):
+    '''
+    Represents a fixed-route transportation service.
+    Attributes:
+        name (str): Name of the service.
+        stops (List[Hex]): List of Hex objects representing the stops.
+        stop_hex_lookup (Dict[Hex, int]): Mapping from Hex to its index in stops.
+        vehicles (List[FixedRouteVehicle]): List of vehicles operating on this route.
+        capacity (float): Maximum capacity of each vehicle.
+        stopping_time (timedelta): Time spent at each stop.
+        travel_time (timedelta): Time taken to travel between hexes.
+    '''
 
     def __init__(self, name, 
                  stops: List[Hex],
                  capacity: float, 
                  stopping_time: timedelta, 
                  travel_time: timedelta, 
-                 vehicles: List[TypingOrderedDict[int, Tuple[datetime,datetime]]],):   
+                 vehicles: List[TypingOrderedDict[int, Tuple[datetime,datetime]]],
+                 network: Network = None):   
         super().__init__(name)
         self.stops = stops
         self.stop_hex_lookup = {stop: index for index, stop in enumerate(stops)}
@@ -25,9 +36,18 @@ class FixedRouteService(Service):
         self.capacity = capacity        
         self.stopping_time = stopping_time
         self.travel_time = travel_time
+        self.network = network
 
 
     def __get_next_departure(self, current_time: datetime, stop_index: int):
+        '''
+        Get the next available vehicle departing from the given stop after current_time.
+        Args:
+            current_time (datetime): The time after which to find the next departure.
+            stop_index (int): Index of the stop in the route.
+        Returns:
+            FixedRouteVehicle: The next available vehicle.
+        '''
         for vehicle in self.vehicles:
             if stop_index in vehicle.timetable:
                 _, departure_time = vehicle.timetable[stop_index]
@@ -39,14 +59,24 @@ class FixedRouteService(Service):
     def get_fare(self, start_hex, end_hex, time = None) -> float:
         return 2.40  # Fixed route service
     
-    def get_route(self, unit, start_time: datetime, start_hex, end_hex) -> Route:
+    def get_route(self, unit, start_time: datetime, start_hex: Hex, end_hex: Hex) -> Route:
+        '''
+        Get a Route object representing the trip from start_hex to end_hex.
+        Args:
+            unit (float): Number of units to be transported.
+            start_time (datetime): When the trip starts.
+            start_hex (Hex): Starting hexagon.
+            end_hex (Hex): Destination hexagon.
+        Returns:
+            Route: The route representing the trip.
+        '''
         if start_hex not in self.stop_hex_lookup or end_hex not in self.stop_hex_lookup:
             raise ValueError("Start or end hex not in stops")
         
         start_index = self.stop_hex_lookup[start_hex]
         end_index = self.stop_hex_lookup[end_hex]
 
-
+        # Get the next available vehicle departing from start_hex
         vehicle = self.__get_next_departure(start_time, start_index)
         _, next_departure = vehicle.timetable[start_index]
         arrival_time, _ = vehicle.timetable[end_index]
@@ -59,11 +89,22 @@ class FixedRouteService(Service):
             end_hex,
             unit,
         )
+        route = Route(unit=unit, actions=[wait_action, ride_action])
+        route.total_fare = self.get_fare(start_hex, end_hex)
 
-        return Route([wait_action, ride_action])
+        return route
 
 
 class FixedRouteVehicle:
+    '''
+    Represents a vehicle operating on a fixed-route service.
+    Attributes:
+        service (FixedRouteService): The service this vehicle operates on.
+        stopping_time (timedelta): Time spent at each stop.
+        current_load (float): Current number of units on board.
+        capacity (float): Maximum capacity of the vehicle.
+        timetable (OrderedDict[int, Tuple[datetime, datetime]]): Mapping from stop index to (arrival_time, departure_time).
+    '''
     def __init__(self, service: FixedRouteService, timetable: TypingOrderedDict[int, Tuple[datetime, datetime]]):
         self.service = service
         self.stopping_time = service.stopping_time
@@ -72,7 +113,22 @@ class FixedRouteVehicle:
         self.timetable = timetable  # OrderedDict mapping stop index to (arrival_time, departure_time)
     
     def __verify_timetable(self):
-        pass
+        '''
+        Verify that the timetable is consistent with the service's travel and stopping times.
+        Raises:
+            ValueError: If the timetable is inconsistent.
+        '''
+        for i in range(len(self.timetable) - 1):
+            _, departure_time = self.timetable[i]
+            next_arrival_time, _ = self.timetable[i + 1]
+            # Expected travel time between stops
+            # This requires access to the network to calculate distance
+            start_stop = self.service.stop_hex_lookup[i]
+            end_stop = self.service.stop_hex_lookup[i + 1]
+            distance = self.service.network.get_distance(start_stop, end_stop)
+            expected_travel_time = self.service.travel_time * distance + self.stopping_time
+            if next_arrival_time - departure_time < expected_travel_time:
+                raise ValueError("Inconsistent timetable between stops {} and {}".format(start_stop, end_stop))
 
     
     def load_passengers(self, unit: float):

@@ -27,8 +27,6 @@ class Ride(Action):
             units (float): Number of units being transported.
         """
         super().__init__(start_time, end_time, units)
-        self.end_time = end_time
         self.start_hex = start_hex
         self.end_hex = end_hex
-        self.units = units
         self.service = service
