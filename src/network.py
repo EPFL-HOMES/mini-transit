@@ -6,7 +6,8 @@ import networkx as nx
 import sys
 import os
 import json
-from walk import Walk
+from src.actions.walk import Walk
+from src.services.fixedroute import FixedRouteService
 
 # Add parent directory to path to import utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -73,12 +74,18 @@ class Network:
             # Find shortest path using NetworkX
             start_node = demand.start_hex.hex_id
             end_node = demand.end_hex.hex_id
+
+            demand_hour = demand.hour
             
             # Check if nodes exist in graph
             if start_node not in self.graph.nodes() or end_node not in self.graph.nodes():
                 return None
             
+
+            # --- Option 1: Direct Walk ---
             # Find shortest path
+            #TODO: clean up code for walk time calculation
+            #also clean up what to do with all the Nones
             try:
                 path = nx.shortest_path(self.graph, start_node, end_node)
             except nx.NetworkXNoPath:
@@ -96,7 +103,9 @@ class Network:
             total_time_minutes = total_time_hours * 60
             
             # Create start time (simulation start time)
-            start_time = datetime.now()  # This will be updated with actual simulation time
+
+            start_time = datetime.now()  # This will be updated with actual simulation time (that's what the other guy wanted to do anyway but we'll see)
+            #TODO: STANDARDIZE TIME HANDLING, discuss with the other devs
             
             # Create a simple walk action dictionary (avoiding Walk class import issues)
             walk_action_data = {
@@ -110,12 +119,67 @@ class Network:
             }
             
             # Create route with simple action data
-            route = Route(
+            walk_route = Route(
                 unit=demand.unit,
                 actions=[walk_action_data]
             )
             
-            return route
+            # --- Option 2: Use Service ---
+            best_service_route = None
+            min_total_time = float('inf')
+
+            #iterating through all services to find best one
+            for service in self.services:
+                if not isinstance(service, FixedRouteService):
+                    continue
+
+                for i in range(len(service.stops) - 1):
+                    service_start = service.stops[i]
+                    service_end = service.stops[i + 1]
+
+                    # FixedRouteService.vehicles format: List[TypingOrderedDict[int, Tuple[datetime,datetime]]],
+
+                    walk1 = Walk(
+                        start_time=demand_hour,
+                        start_hex=demand.start_hex,
+                        end_hex=service_start,
+                        walk_speed=walk_speed,
+                        graph=self.graph
+                    )
+
+                    walk1.end_time  # this is just to note that end_time should've already been calculated in Walk
+
+                    total_actions = [walk1]
+
+                    #TODO: VERY IMPORTANT: implement route transfer logic based on whether the service can accommodate the demand at the given time and whether the service route includes the start and end hexes. This will likely involve checking the service's timetable and vehicle availability, as well as calculating wait times and ride times for the service.
+                    # get the wait and ride actions for ONE particular service route
+                    wait, ride = service.get_route(demand.unit, walk1.end_time, service_start, service_end)
+                    total_actions.extend([wait, ride])
+
+                    walk2 = Walk(
+                        start_time=demand_hour,
+                        start_hex=service_end,
+                        end_hex=demand.end_hex,
+                        walk_speed=walk_speed,
+                        graph=self.graph,
+                    )
+                    total_actions.append(walk2)
+
+                    route = Route(unit=demand.unit, actions=total_actions)
+
+                    # time_taken calculation should already be handled by the Route class
+                    route.total_fare = ride.fare # Assuming fare is calculated in the Ride action
+
+
+                    if route.time_taken < min_total_time:
+                        min_total_time = route.time_taken
+                        best_service_route = route
+
+            # --- Compare & Return ---
+            if walk_route.time_taken < min_total_time:
+                return walk_route
+            else:
+                return best_service_route if best_service_route else walk_route
             
         except Exception as e:
             print(f"Error in get_optimal_route: {e}")

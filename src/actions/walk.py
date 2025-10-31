@@ -3,6 +3,7 @@ Walk class representing walking action in a route.
 """
 
 from datetime import datetime, timedelta
+import networkx as nx
 from src.action import Action
 from src.hex import Hex
 import json
@@ -18,7 +19,7 @@ class Walk(Action):
         walk_speed (float): Walking speed in hexagons per hour.
     """
     
-    def __init__(self, start_time: datetime, start_hex: Hex, end_hex: Hex, unit=None, walk_speed: float = None):
+    def __init__(self, start_time: datetime, start_hex: Hex, end_hex: Hex, unit=None, walk_speed: float = None, graph: nx.Graph = None):
         """
         Initialize a Walk action.
         
@@ -61,10 +62,15 @@ class Walk(Action):
     def _calculate_end_time(self):
         """
         Calculate the end time based on distance and walking speed.
+        Args:
+            graph: The network graph to calculate distance.
         """
         # For now, assume distance is 1 hexagon (neighbors)
-        # In a real implementation, you'd calculate actual distance
-        distance = 1.0  # hexagons
+        #TODO handle errors where the path does not exist
+        path = nx.shortest_path(self.graph, self.start_hex.hex_id, self.end_hex.hex_id)
+        
+        # Calculate total distance (number of edges in path)
+        distance = len(path) - 1  # Number of edges = number of nodes - 1
         
         # Calculate time in hours
         time_hours = distance / self.walk_speed

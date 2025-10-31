@@ -70,6 +70,7 @@ class FixedRouteService(Service):
         Returns:
             Route: The route representing the trip.
         '''
+        #TODO: 
         if start_hex not in self.stop_hex_lookup or end_hex not in self.stop_hex_lookup:
             raise ValueError("Start or end hex not in stops")
         
@@ -88,9 +89,10 @@ class FixedRouteService(Service):
             start_hex,
             end_hex,
             unit,
+            service=self
         )
+        route_actions = [wait_action, ride_action]
         route = Route(unit=unit, actions=[wait_action, ride_action])
-        route.total_fare = self.get_fare(start_hex, end_hex)
 
         return route
 

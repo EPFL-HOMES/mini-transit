@@ -30,3 +30,4 @@ class Ride(Action):
         self.start_hex = start_hex
         self.end_hex = end_hex
         self.service = service
+        self.fare = self.service.get_fare(start_hex, end_hex, start_time)

@@ -28,7 +28,8 @@ class Route:
         self.unit = unit
         self.actions = actions
         self.time_taken = self._calculate_total_time()
-        self.total_fare = self._calculate_total_fare()
+        # we're not using _calculate_total_fare for now
+        #self.total_fare = self._calculate_total_fare()
     
     def _calculate_total_time(self) -> timedelta:
         """
