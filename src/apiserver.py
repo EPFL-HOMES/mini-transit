@@ -11,8 +11,10 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.network import Network
 from src.demand import Demand
+from src.actions.walk import Walk
 from src.hex import Hex
-from .walk import Walk
+from src.models import FixedRouteServiceModel
+from typing import List
 
 class APIServer:
     """
@@ -50,6 +52,27 @@ class APIServer:
         self.demands = self._load_demands(demands_path)
         
         print(f"Initialized {city_name}: {len(self.demands)} demands, {len(self.network.graph.nodes())} hexagons")
+
+    def _load_fixedroute_services(self, services: List[FixedRouteServiceModel], *args, **kwargs):
+        """
+        Load fixed-route services into the network.
+        
+        Args:
+            *args: Positional arguments for FixedRouteService.
+            **kwargs: Keyword arguments for FixedRouteService.
+        """
+        from src.services.fixedroute import FixedRouteService
+        
+        for service_model in services:
+            fixed_route_service = FixedRouteService(
+                name=service_model.name,
+                stops=service_model.stops,
+                capacity=service_model.capacity,
+                stopping_time=service_model.stopping_time,
+                travel_time=service_model.travel_time,
+                vehicles=service_model.vehicles,
+            )
+            self.network.services.append(fixed_route_service)
     
     def _load_demands(self, csv_path: str):
         """
