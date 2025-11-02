@@ -19,7 +19,7 @@ class Walk(Action):
         walk_speed (float): Walking speed in hexagons per hour.
     """
     
-    def __init__(self, start_time: datetime, start_hex: Hex, end_hex: Hex, unit=None, walk_speed: float = None, graph: nx.Graph = None):
+    def __init__(self, start_time: datetime, end_time: datetime, start_hex: Hex, end_hex: Hex, unit: float, graph: nx.Graph, walk_speed: float = None):
         """
         Initialize a Walk action.
         
@@ -30,9 +30,11 @@ class Walk(Action):
             walk_speed (float, optional): Walking speed in hexagons per hour. 
                                        If None, loads from config.json.
         """
-        super().__init__(start_time, end_time=None, units=unit)
+        super().__init__(start_time, end_time, units=unit)
         self.start_hex = start_hex
         self.end_hex = end_hex
+        #self.graph = graph because we do not need _calculate_end_time for now
+        self.fare = 0.0  # Walking has no fare
 
         
         if walk_speed is None:
@@ -40,8 +42,11 @@ class Walk(Action):
         else:
             self.walk_speed = walk_speed
         
-        # Calculate end time based on distance and speed
-        self._calculate_end_time()
+        # making end_time mandatory for Walk action for now because we literally already compute it in network.py
+
+        # yeeted for now: Calculate end time based on distance and speed if not provided
+        #if not end_time:
+            #self._calculate_end_time()
     
     def _load_walk_speed_from_config(self) -> float:
         """
