@@ -6,6 +6,8 @@ import networkx as nx
 import sys
 import os
 import json
+from src.actions.walk import Walk
+from src.services.fixedroute import FixedRouteService
 
 # Add parent directory to path to import utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -49,6 +51,29 @@ class Network:
             return length
         except nx.NetworkXNoPath:
             return float('inf')  # No path exists
+        
+        
+    def compute_walk_time(self, graph, from_hex, to_hex, walk_speed):
+        """Returns walk time (in minutes) and path if exists, else (inf, None)
+        Specially reserved for isolated computation cases outside of Walk class"""
+        try:
+            distance = nx.shortest_path_length(graph, source=from_hex, target=to_hex, weight='length')
+            time_hours = distance / walk_speed 
+            return time_hours, nx.shortest_path(graph, source=from_hex, target=to_hex)
+        except nx.NetworkXNoPath:
+            return float('inf'), None
+
+
+    def find_closest_stop(self, graph, hex_id, service, walk_speed):
+        best_stop = None
+        best_time = float('inf')
+        for stop in service.stops:
+            walk_time, _ = self.compute_walk_time(graph, hex_id, stop, walk_speed)
+            if walk_time < best_time:
+                best_time = walk_time
+                best_stop = stop
+        return best_stop, best_time
+    
     
     def get_optimal_route(self, demand):
         """
@@ -67,58 +92,87 @@ class Network:
             from .route import Route
         except ImportError:
             from src.route import Route
+
+        walk_speed = self._load_walk_speed_from_config()
+        # Find shortest path using NetworkX
+        start = demand.start_hex.hex_id
+        end = demand.end_hex.hex_id
+        demand_hour = demand.hour
         
-        try:
-            # Find shortest path using NetworkX
-            start_node = demand.start_hex.hex_id
-            end_node = demand.end_hex.hex_id
-            
-            # Check if nodes exist in graph
-            if start_node not in self.graph.nodes() or end_node not in self.graph.nodes():
-                return None
-            
-            # Find shortest path
-            try:
-                path = nx.shortest_path(self.graph, start_node, end_node)
-            except nx.NetworkXNoPath:
-                # No path exists between start and end
-                return None
-            
-            # Calculate total distance (number of edges in path)
-            distance = len(path) - 1  # Number of edges = number of nodes - 1
-            
-            # Load walking speed from config
-            walk_speed = self._load_walk_speed_from_config()
-            
-            # Calculate total time
-            total_time_hours = distance / walk_speed
-            total_time_minutes = total_time_hours * 60
-            
-            # Create start time (simulation start time)
-            start_time = datetime.now()  # This will be updated with actual simulation time
-            
-            # Create a simple walk action dictionary (avoiding Walk class import issues)
-            walk_action_data = {
-                'type': 'Walk',
-                'start_time': start_time,
-                'end_time': start_time + timedelta(minutes=total_time_minutes),
-                'start_hex': demand.start_hex,
-                'end_hex': demand.end_hex,
-                'walk_speed': walk_speed,
-                'distance': distance
-            }
-            
-            # Create route with simple action data
-            route = Route(
+        # 1. Try direct walk
+        walk_time, walk_path = self.compute_walk_time(self.graph, start, end, walk_speed)
+        if walk_time < float('inf'):
+            walk_action = Walk(
+                start_time=demand_hour,
+                start_hex=start,
+                end_hex=end,
                 unit=demand.unit,
-                actions=[walk_action_data]
+                walk_speed=walk_speed,
+                end_time=demand_hour + timedelta(hours=walk_time)
             )
-            
-            return route
-            
-        except Exception as e:
-            print(f"Error in get_optimal_route: {e}")
-            return None
+
+            walk_route = Route(unit=demand.unit, actions=[walk_action])
+        else:
+            walk_route = None
+
+        # 2. Try all combinations of services
+        best_route = walk_route
+        best_time = walk_route.time_taken if walk_route else float('inf')
+        # TODO: for now implementation is for only possbilities where at most one transfer occurs
+
+        # Current algorithm: try all pairs of services (including same service twice)
+        for s1 in self.services:
+            for s2 in self.services:
+                if not isinstance(s1, FixedRouteService) or not isinstance(s2, FixedRouteService):
+                    continue
+
+                s1_start, s1_walk_time = self.find_closest_stop(self.graph, start, s1, walk_speed)
+                s2_end, s2_walk_time = self.find_closest_stop(self.graph, end, s2, walk_speed)
+
+                if s1_start is None or s2_end is None:
+                    continue
+
+                # CASE 1: Same service
+                if s1 == s2 and s1_start in s1.stops and s2_end in s1.stops:
+                    idx1 = s1.stops.index(s1_start)
+                    idx2 = s1.stops.index(s2_end)
+                    if idx1 < idx2:  # Ensure forward direction along the line's actual direction   
+                        walk1 = Walk(demand_hour, demand_hour + timedelta(hours=s1_walk_time), start, s1_start, unit=demand.unit, walk_speed=walk_speed)
+                        wait, ride = s1.get_route(demand.unit, walk1.end_time, s1_start, s2_end)
+                        walk2 = Walk(ride.end_time, ride.end_time + timedelta(hours=s2_walk_time), s2_end, end, unit=demand.unit, walk_speed=walk_speed)
+
+                        route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2])
+
+                        if route.time_taken < best_time:
+                            best_time = route.time_taken
+                            best_route = route
+
+                # CASE 2: Try transfer via common stop
+                else:
+                    common_stops = set(s1.stops) & set(s2.stops)
+                    for transfer_stop in common_stops:
+                        if (s1_start in s1.stops and transfer_stop in s1.stops and
+                            transfer_stop in s2.stops and s2_end in s2.stops):
+                            # Ensure valid directions
+                            if s1.stops.index(s1_start) < s1.stops.index(transfer_stop) and \
+                            s2.stops.index(transfer_stop) < s2.stops.index(s2_end):
+
+                                walk1 = Walk(demand_hour, demand_hour + timedelta(hours=s1_walk_time), start, s1_start, unit=demand.unit, walk_speed=walk_speed)
+                                wait1, ride1 = s1.get_route(demand.unit, walk1.end_time, s1_start, transfer_stop)
+                                wait2, ride2 = s2.get_route(demand.unit, ride1.end_time, transfer_stop, s2_end)
+                                walk2 = Walk(ride.end_time, ride.end_time + timedelta(hours=s2_walk_time), s2_end, end, unit=demand.unit, walk_speed=walk_speed)
+
+                                route = Route(unit=demand.unit, actions=[walk1, wait1, ride1, wait2, ride2, walk2])
+
+                                if route.time_taken < best_time:
+                                    best_time = route.time_taken
+                                    best_route = route
+                
+                # TODO: future cases:
+                # CASE 3: Different services with no common stop (not implemented yet) aka literally walk the gap between services
+                # CASE 4: More than 2 services transfer (not implemented yet)
+
+        return best_route
     
     def _load_walk_speed_from_config(self):
         """Load walking speed from config.json."""

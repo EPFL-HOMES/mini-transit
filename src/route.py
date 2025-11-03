@@ -17,7 +17,7 @@ class Route:
         total_fare (float): Total fare for this route.
     """
     
-    def __init__(self, unit: float, actions):
+    def __init__(self, unit: float, actions: List[Action]=[]):
         """
         Initialize a Route object.
         
@@ -73,8 +73,18 @@ class Route:
         Returns:
             float: Total fare for this route.
         """
-        total_minutes = self.time_taken.total_seconds() / 60.0
-        return total_minutes * 0.1  # Simple fare calculation
+        if not self.actions:
+            return 0.0
+        
+        total_fare = 0.0
+        for action in self.actions:
+            if hasattr(action, 'fare'):
+                total_fare += action.fare
+            elif isinstance(action, dict) and 'fare' in action:
+                total_fare += action['fare']
+
+        return total_fare
+    
     
     @property
     def time_taken_minutes(self) -> float:
@@ -123,6 +133,18 @@ class Route:
             action (Action): Action to add.
         """
         self.actions.append(action)
+        # Recalculate totals
+        self.time_taken = self._calculate_total_time()
+        self.total_fare = self._calculate_total_fare()
+    
+    def extend_actions(self, actions: List[Action]):
+        """
+        Extend the actions list with multiple actions.
+        
+        Args:
+            actions (List[Action]): List of actions to add.
+        """
+        self.actions.extend(actions)
         # Recalculate totals
         self.time_taken = self._calculate_total_time()
         self.total_fare = self._calculate_total_fare()

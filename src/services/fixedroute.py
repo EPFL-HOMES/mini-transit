@@ -68,8 +68,9 @@ class FixedRouteService(Service):
             start_hex (Hex): Starting hexagon.
             end_hex (Hex): Destination hexagon.
         Returns:
-            Route: The route representing the trip.
+            Tuple[Wait, Ride]: A tuple containing the Wait action and Ride action.
         '''
+        #TODO: I don't even know why I wrote TODO here, might figure it out later
         if start_hex not in self.stop_hex_lookup or end_hex not in self.stop_hex_lookup:
             raise ValueError("Start or end hex not in stops")
         
@@ -88,11 +89,10 @@ class FixedRouteService(Service):
             start_hex,
             end_hex,
             unit,
+            service=self
         )
-        route = Route(unit=unit, actions=[wait_action, ride_action])
-        route.total_fare = self.get_fare(start_hex, end_hex)
 
-        return route
+        return wait_action, ride_action
 
 
 class FixedRouteVehicle:

@@ -19,6 +19,7 @@ class Hex:
             hex_id (int): A unique identifier for the hexagonal cell.
         """
         self.hex_id = hex_id
+        #TODO: future implementation: should we add list of services that pass through this hex?
     
     def __repr__(self):
         return f"Hex(hex_id={self.hex_id})"

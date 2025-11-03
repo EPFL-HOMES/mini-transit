@@ -11,6 +11,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.network import Network
 from src.demand import Demand
+from src.actions.walk import Walk
 from src.hex import Hex
 from src.models import FixedRouteServiceModel
 from typing import List
