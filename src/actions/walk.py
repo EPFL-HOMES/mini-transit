@@ -3,8 +3,8 @@ Walk class representing walking action in a route.
 """
 
 from datetime import datetime, timedelta
-from .action import Action
-from .hex import Hex
+from src.action import Action
+from src.hex import Hex
 import json
 import os
 
@@ -18,7 +18,7 @@ class Walk(Action):
         walk_speed (float): Walking speed in hexagons per hour.
     """
     
-    def __init__(self, start_time: datetime, start_hex: Hex, end_hex: Hex, walk_speed: float = None):
+    def __init__(self, start_time: datetime, start_hex: Hex, end_hex: Hex, unit=None, walk_speed: float = None):
         """
         Initialize a Walk action.
         
@@ -29,9 +29,10 @@ class Walk(Action):
             walk_speed (float, optional): Walking speed in hexagons per hour. 
                                        If None, loads from config.json.
         """
-        super().__init__(start_time)
+        super().__init__(start_time, end_time=None, units=unit)
         self.start_hex = start_hex
         self.end_hex = end_hex
+
         
         if walk_speed is None:
             self.walk_speed = self._load_walk_speed_from_config()

@@ -14,7 +14,7 @@ class Action(ABC):
         end_time (datetime): When the action ends.
     """
     
-    def __init__(self, start_time: datetime):
+    def __init__(self, start_time: datetime, end_time: datetime = None, units: float = None):
         """
         Initialize an Action object.
         
@@ -22,7 +22,8 @@ class Action(ABC):
             start_time (datetime): When the action starts.
         """
         self.start_time = start_time
-        self.end_time = None  # Will be set by subclasses
+        self.end_time =  end_time
+        self.units = units
     
     @property
     def duration(self) -> timedelta:

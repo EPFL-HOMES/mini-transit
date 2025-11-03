@@ -39,3 +39,4 @@ class Demand:
         return (self.hour == other.hour and 
                 self.start_hex == other.start_hex and 
                 self.end_hex == other.end_hex)
+    
