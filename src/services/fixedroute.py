@@ -4,7 +4,6 @@ from src.services import Service
 from src.route import Route
 from src.actions import Wait, Ride
 from src.hex import Hex
-from src.network import Network
 from typing import List, Tuple, Dict, OrderedDict as TypingOrderedDict
 
 
@@ -27,8 +26,7 @@ class FixedRouteService(Service):
                  capacity: float, 
                  stopping_time: timedelta, 
                  travel_time: timedelta, 
-                 vehicles: List[TypingOrderedDict[int, Tuple[datetime,datetime]]],
-                 network: Network = None):   
+                 vehicles: List[TypingOrderedDict[int, Tuple[datetime,datetime]]]):   
         super().__init__(name)
         self.stops = stops
         self.stop_hex_lookup = {stop: index for index, stop in enumerate(stops)}
@@ -36,7 +34,6 @@ class FixedRouteService(Service):
         self.capacity = capacity        
         self.stopping_time = stopping_time
         self.travel_time = travel_time
-        self.network = network
 
 
     def __get_next_departure(self, current_time: datetime, stop_index: int):
