@@ -20,6 +20,7 @@ class FixedRouteService(Service):
         capacity (float): Maximum capacity of each vehicle.
         stopping_time (timedelta): Time spent at each stop.
         travel_time (timedelta): Time taken to travel between hexes.
+        network (Network): The transportation network the service operates on.
     '''
 
     def __init__(self, name, 
