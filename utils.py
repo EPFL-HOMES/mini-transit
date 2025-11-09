@@ -31,26 +31,41 @@ def find_adjacencies(gdf):
     Returns:
         list: A list of tuples, where each tuple contains the indices of two adjacent polygons.
     """
-    # Build spatial index
-    gdf_sindex = gdf.sindex
     adjacency_list = []
-    # Use tqdm for progress bar if you have many polygons
-    iterator = gdf.iterrows()
 
+    try:
+        # Build spatial index (requires rtree/pygeos or shapely>=2)
+        gdf_sindex = gdf.sindex
+    except Exception as exc:  # noqa: F841
+        gdf_sindex = None
 
-    for index, polygon in iterator:
-        geom = polygon.geometry
-        # Find potential neighbors using spatial index (intersects bounds)
-        possible_matches_index = list(gdf_sindex.intersection(geom.bounds))
-        # Filter for precise touch condition
-        # Check index != index to avoid self-adjacency
-        # Check index < neighbor_index to add each pair only once
-        precise_matches = [
-            neighbor_index for neighbor_index in possible_matches_index
-            if index < neighbor_index and geom.touches(gdf.geometry.loc[neighbor_index])
-        ]
-        for neighbor_index in precise_matches:
-            adjacency_list.append(tuple(sorted((int(index), int(neighbor_index)))))
+    if gdf_sindex is not None:
+        # Use tqdm for progress bar if you have many polygons
+        iterator = gdf.iterrows()
+
+        for index, polygon in iterator:
+            geom = polygon.geometry
+            # Find potential neighbors using spatial index (intersects bounds)
+            possible_matches_index = list(gdf_sindex.intersection(geom.bounds))
+            # Filter for precise touch condition
+            # Check index != index to avoid self-adjacency
+            # Check index < neighbor_index to add each pair only once
+            precise_matches = [
+                neighbor_index
+                for neighbor_index in possible_matches_index
+                if index < neighbor_index and geom.touches(gdf.geometry.loc[neighbor_index])
+            ]
+            for neighbor_index in precise_matches:
+                adjacency_list.append(tuple(sorted((int(index), int(neighbor_index)))))
+    else:
+        # Fallback without spatial index (O(n^2) but robust for moderate sizes)
+        geoms = list(gdf.geometry)
+        total = len(geoms)
+        for index in range(total):
+            geom = geoms[index]
+            for neighbor_index in range(index + 1, total):
+                if geom.touches(geoms[neighbor_index]):
+                    adjacency_list.append((index, neighbor_index))
 
     # Remove potential duplicates if any slip through (though index < neighbor_index should prevent it)
     unique_adjacencies = sorted(list(set(adjacency_list)))

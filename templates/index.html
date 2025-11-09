@@ -487,13 +487,7 @@
                 const result = await response.json();
                 
                 if (response.ok) {
-                    // Display success message with average fare
-                    const avgFare = result.average_fare ? result.average_fare.toFixed(2) : '0.00';
-                    const totalFare = result.total_fare ? result.total_fare.toFixed(2) : '0.00';
-                    const routesGenerated = result.routes_generated || 0;
-                    const message = `✅ ${result.message}\n📊 Average Fare: ${avgFare} | Routes: ${routesGenerated} | Total Fare: ${totalFare}`;
-                    showSimulationStatus(message, 'success');
-                    console.log(`Simulation results:`, result);
+                    showSimulationStatus('✅ Simulation finished', 'success');
                 } else {
                     showSimulationStatus(`❌ ${result.error}`, 'error');
                 }

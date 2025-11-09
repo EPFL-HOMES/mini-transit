@@ -26,6 +26,7 @@ class APIServer:
         """Initialize the APIServer."""
         self.network = None
         self.demands = []
+        self.city_name = None
     
     def init_app(self, city_name: str):
         """
@@ -41,6 +42,9 @@ class APIServer:
         # Set up file paths
         geojson_path = f"data/{city_name}/{city_name}.geojson"
         demands_path = f"data/{city_name}/{city_name}_time_dependent_demands.csv"
+
+        # Remember the active city for subsequent calls (e.g. saving results)
+        self.city_name = city_name
         
         # Initialize network
         self.network = Network(geojson_path)
@@ -109,13 +113,15 @@ class APIServer:
             }
         
         try:
-            from datetime import datetime, timedelta
+            from datetime import datetime, timedelta, time
             
             # Extract simulation parameters
             simulation_hour = input_json.get('hour', 8)  # Default to hour 8 if not specified
             
             # Clear previous routes
             self.network.clear()
+
+            simulation_start_datetime = datetime.combine(datetime.today(), time(simulation_hour, 0))
             
             # Filter demands by the specified hour
             filtered_demands = [demand for demand in self.demands if demand.hour == simulation_hour]
@@ -136,7 +142,7 @@ class APIServer:
             # Process each demand using network optimization
             for demand in filtered_demands:
                 # Get optimal route using network
-                route = self.network.get_optimal_route(demand)
+                route = self.network.get_optimal_route(demand, simulation_start_datetime)
                 
                 if route is not None:
                     # Push route to network
@@ -162,8 +168,8 @@ class APIServer:
                         # Action object
                         action_data = {
                             "type": action.__class__.__name__,
-                            "start_time": action.start_time.isoformat(),
-                            "end_time": action.end_time.isoformat() if action.end_time else None,
+                            "start_time": action.start_time.strftime("%H:%M"),
+                            "end_time": action.end_time.strftime("%H:%M") if action.end_time else None,
                             "duration_minutes": action.duration_minutes
                         }
                         
@@ -177,11 +183,24 @@ class APIServer:
                             })
                     elif isinstance(action, dict):
                         # Dictionary action
+                        start_time = action['start_time']
+                        end_time = action.get('end_time')
+                        if isinstance(start_time, str):
+                            start_time_str = start_time
+                        else:
+                            start_time_str = start_time.strftime("%H:%M")
+                        if isinstance(end_time, str) or end_time is None:
+                            end_time_str = end_time
+                        else:
+                            end_time_str = end_time.strftime("%H:%M")
+                        duration_minutes = action.get('duration_minutes')
+                        if duration_minutes is None and end_time and start_time:
+                            duration_minutes = (end_time - start_time).total_seconds() / 60.0
                         action_data = {
                             "type": action.get('type', 'Unknown'),
-                            "start_time": action['start_time'].isoformat(),
-                            "end_time": action['end_time'].isoformat() if action.get('end_time') else None,
-                            "duration_minutes": (action['end_time'] - action['start_time']).total_seconds() / 60.0
+                            "start_time": start_time_str,
+                            "end_time": end_time_str,
+                            "duration_minutes": duration_minutes
                         }
                         
                         # Add specific fields for Walk actions
@@ -238,26 +257,39 @@ class APIServer:
         """
         try:
             from datetime import datetime
+            import sys
             import traceback
+
+            def safe_print(*args, **kwargs):
+                try:
+                    print(*args, **kwargs)
+                except UnicodeEncodeError:
+                    encoding = sys.stdout.encoding or 'ascii'
+                    sanitized = [
+                        str(arg).encode(encoding, errors='replace').decode(encoding, errors='replace')
+                        for arg in args
+                    ]
+                    print(*sanitized, **kwargs)
             
-            print(f"Starting to save simulation results for {self.city_name} hour {simulation_hour}")
+            city_name = self.city_name or "unknown_city"
+            safe_print(f"Starting to save simulation results for {city_name} hour {simulation_hour}")
             
             # Create results directory if it doesn't exist
             results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'simulation_results')
-            print(f"Results directory: {results_dir}")
+            safe_print(f"Results directory: {results_dir}")
             os.makedirs(results_dir, exist_ok=True)
             
             # Generate filename with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{self.city_name}_hour{simulation_hour}_{timestamp}.json"
+            filename = f"{city_name}_hour{simulation_hour}_{timestamp}.json"
             filepath = os.path.join(results_dir, filename)
-            print(f"Saving to: {filepath}")
+            safe_print(f"Saving to: {filepath}")
             
             # Save to file
-            with open(filepath, 'w') as f:
+            with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(result, f, indent=2)
             
-            print(f"Simulation results saved successfully to: {filepath}")
+            safe_print(f"Simulation results saved successfully to: {filepath}")
             
         except Exception as e:
             print(f"Error saving simulation results: {e}")

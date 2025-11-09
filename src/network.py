@@ -34,12 +34,13 @@ class Network:
         self.services = []  # Will be populated later
         self.routes_taken = []  # Will be populated during simulation
     
-    def get_optimal_route(self, demand):
+    def get_optimal_route(self, demand, start_datetime=None):
         """
         Get the optimal route for a given demand using shortest path algorithm.
         
         Args:
             demand: A Demand object representing the travel request.
+            start_datetime (datetime, optional): Simulation reference time for the route.
             
         Returns:
             Route: The optimal route to fulfill the demand.
@@ -79,7 +80,10 @@ class Network:
             total_time_minutes = total_time_hours * 60
             
             # Create start time (simulation start time)
-            start_time = datetime.now()  # This will be updated with actual simulation time
+            if start_datetime is None:
+                start_time = datetime.now().replace(second=0, microsecond=0)
+            else:
+                start_time = start_datetime
             
             # Create a simple walk action dictionary (avoiding Walk class import issues)
             walk_action_data = {
@@ -89,7 +93,8 @@ class Network:
                 'start_hex': demand.start_hex,
                 'end_hex': demand.end_hex,
                 'walk_speed': walk_speed,
-                'distance': distance
+                'distance': distance,
+                'duration_minutes': total_time_minutes
             }
             
             # Create route with simple action data
