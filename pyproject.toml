@@ -2,7 +2,7 @@
 name = "mini-transit-simulation"
 version = "0.1.0"
 description = "Simulation designed for EPFL course CIVIL-324: Urban public transport systems."
-authors = ["berke.argin@epfl.ch"]
+authors = ["Berke Argin <berke.argin@epfl.ch>"]
 readme = "README.md"
 packages = [{ include = "src" }]
 
