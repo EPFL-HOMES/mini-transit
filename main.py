@@ -1,15 +1,16 @@
 """
 FastAPI web application for transportation system simulation visualization.
 """
+
 from __future__ import annotations
 
-from pathlib import Path
 import json
-from typing import Dict, Any, List
+from pathlib import Path
+from typing import Any, Dict, List
 
 import geopandas as gpd
 import pandas as pd  # noqa: F401  # kept for parity with original code
-from fastapi import FastAPI, HTTPException, Request, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -91,6 +92,7 @@ def load_city_data(city_name: str) -> Dict[str, Any]:
 
 
 # --------------------- Routes ---------------------
+
 
 @app.get("/", response_class=JSONResponse)
 def index(request: Request):
@@ -208,4 +210,5 @@ def get_simulation_status():
 # --------------- Dev server ---------------
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True)

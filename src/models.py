@@ -1,9 +1,12 @@
-from pydantic import BaseModel
-from typing import List, Tuple, OrderedDict
 from datetime import datetime, timedelta
+from typing import List, OrderedDict, Tuple
+
+from pydantic import BaseModel
+
 
 class HexModel(BaseModel):
     hex_id: str
+
 
 class FixedRouteServiceModel(BaseModel):
     name: str
@@ -11,7 +14,6 @@ class FixedRouteServiceModel(BaseModel):
     capacity: float
     stopping_time: timedelta
     travel_time: timedelta
-    vehicles: List[OrderedDict[int, Tuple[datetime, datetime]]]  # List of dicts mapping stop index to (arrival_time, departure_time)
-
-
-
+    vehicles: List[
+        OrderedDict[int, Tuple[datetime, datetime]]
+    ]  # List of dicts mapping stop index to (arrival_time, departure_time)

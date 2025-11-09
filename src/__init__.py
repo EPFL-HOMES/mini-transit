@@ -2,12 +2,12 @@
 Simulation package for transportation system.
 """
 
-from .hex import Hex
-from .demand import Demand
-from .network import Network
+from src.actions import Action, Walk
+
 from .apiserver import APIServer
-from src.actions import Action
-from src.actions import Walk
+from .demand import Demand
+from .hex import Hex
+from .network import Network
 from .route import Route
 
-__all__ = ['Hex', 'Demand', 'Network', 'APIServer', 'Action', 'Walk', 'Route']
+__all__ = ["Hex", "Demand", "Network", "APIServer", "Action", "Walk", "Route"]
