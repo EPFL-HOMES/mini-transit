@@ -28,7 +28,7 @@ class Demand:
         self.hour = hour
         self.start_hex = start_hex
         self.end_hex = end_hex
-        self.unit = unit
+        self.unit = int(unit)
     
     def __repr__(self):
         return f"Demand(hour={self.hour}, start_hex={self.start_hex}, end_hex={self.end_hex}, unit={self.unit})"

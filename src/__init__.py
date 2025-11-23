@@ -6,8 +6,7 @@ from .hex import Hex
 from .demand import Demand
 from .network import Network
 from .apiserver import APIServer
-from .action import Action
-from .walk import Walk
+from .actions import Action, Walk, Wait, Ride
 from .route import Route
 
-__all__ = ['Hex', 'Demand', 'Network', 'APIServer', 'Action', 'Walk', 'Route']
+__all__ = ['Hex', 'Demand', 'Network', 'APIServer', 'Action', 'Walk', 'Wait', 'Ride', 'Route']

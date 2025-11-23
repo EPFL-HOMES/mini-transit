@@ -4,7 +4,7 @@ Walk class representing walking action in a route.
 
 from datetime import datetime, timedelta
 from .action import Action
-from .hex import Hex
+from ..hex import Hex
 import json
 import os
 
@@ -49,7 +49,7 @@ class Walk(Action):
             float: Walking speed in hexagons per hour.
         """
         try:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'config.json')
+            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data', 'config.json')
             with open(config_path, 'r') as f:
                 config = json.load(f)
             return config.get('walk_speed', 10.0)
@@ -85,3 +85,4 @@ class Walk(Action):
     
     def __repr__(self):
         return f"Walk(start_time={self.start_time}, start_hex={self.start_hex}, end_hex={self.end_hex}, walk_speed={self.walk_speed})"
+

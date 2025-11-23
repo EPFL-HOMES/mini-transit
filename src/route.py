@@ -4,7 +4,7 @@ Route class representing a complete route taken by a unit.
 
 from datetime import datetime, timedelta
 from typing import List
-from .action import Action
+from .actions import Action
 
 class Route:
     """

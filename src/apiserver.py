@@ -2,16 +2,25 @@
 APIServer class that talks with frontend and starts the simulation.
 """
 
-import pandas as pd
+import heapq
 import json
-import sys
 import os
+import pandas as pd
+import sys
+import traceback
+from datetime import datetime, timedelta, time
+from itertools import count
 
 # Add parent directory to path to import other modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.network import Network
 from src.demand import Demand
 from src.hex import Hex
+from src.route import Route
+from src.actions.walk import Walk
+from src.actions.ride import Ride
+from src.actions.wait import Wait
+from src.fixed_route_service import FixedRouteService
 
 class APIServer:
     """
@@ -42,6 +51,7 @@ class APIServer:
         # Set up file paths
         geojson_path = f"data/{city_name}/{city_name}.geojson"
         demands_path = f"data/{city_name}/{city_name}_time_dependent_demands.csv"
+        fixed_routes_path = f"data/{city_name}/fixed_routes.json"
 
         # Remember the active city for subsequent calls (e.g. saving results)
         self.city_name = city_name
@@ -51,6 +61,16 @@ class APIServer:
         
         # Load and parse demands from CSV
         self.demands = self._load_demands(demands_path)
+        
+        # Load fixed route services if file exists
+        if os.path.exists(fixed_routes_path):
+            self.network.fixed_route_services = FixedRouteService.load_from_file(
+                fixed_routes_path
+            )
+            print(f"Loaded {len(self.network.fixed_route_services)} fixed route services")
+        else:
+            self.network.fixed_route_services = []
+            print(f"No fixed route services file found at {fixed_routes_path}")
         
         print(f"Initialized {city_name}: {len(self.demands)} demands, {len(self.network.graph.nodes())} hexagons")
     
@@ -113,8 +133,6 @@ class APIServer:
             }
         
         try:
-            from datetime import datetime, timedelta, time
-            
             # Extract simulation parameters
             simulation_hour = input_json.get('hour', 8)  # Default to hour 8 if not specified
             
@@ -136,18 +154,140 @@ class APIServer:
                     "routes_generated": 0
                 }
             
-            routes = []
             simulation_start_time = datetime.now()
-            
-            # Process each demand using network optimization
+
+            def get_action_times(action):
+                """Return (start, end) times for an action (object or dict)."""
+                if isinstance(action, dict):
+                    return action.get("start_time"), action.get("end_time")
+                return getattr(action, "start_time", None), getattr(action, "end_time", None)
+
+            # Priority queue of demand states sorted by current action end time
+            demand_queue = []
+            order_counter = count()
+            completed_routes = []
+
             for demand in filtered_demands:
-                # Get optimal route using network
                 route = self.network.get_optimal_route(demand, simulation_start_datetime)
+                if route is None or not route.actions:
+                    continue
+
+                order = next(order_counter)
+                first_action = route.actions[0]
+                first_start, first_end = get_action_times(first_action)
+                if first_start is None or first_end is None:
+                    continue
+
+                state = {
+                    "demand": demand,
+                    "route": route,
+                    "current_action_index": 0,
+                    "current_action_end_time": first_end,
+                    "order": order
+                }
+                heapq.heappush(demand_queue, (first_end, order, state))
+
+
+            while demand_queue:
+                # Pop the first demand
+                first_end_time, first_order, first_state = heapq.heappop(demand_queue)
                 
-                if route is not None:
-                    # Push route to network
-                    self.network.push_route(route)
-                    routes.append(route)
+                # Collect all demands with the same end_time
+                same_time_demands = [(first_end_time, first_order, first_state)]
+                while demand_queue and demand_queue[0][0] == first_end_time:
+                    same_time_demands.append(heapq.heappop(demand_queue))
+                
+                # Phase 1: Update vehicles (process demands finishing Ride actions)
+                finishing_ride_demands = []
+                other_demands = []
+                
+                for end_time, order, state in same_time_demands:
+                    route = state["route"]
+                    actions = route.actions
+                    current_index = state["current_action_index"]
+                    
+                    if current_index >= len(actions) - 1:
+                        # Route complete
+                        self.network.push_route(route)
+                        completed_routes.append((order, route))
+                        continue
+                    
+                    current_action = actions[current_index]
+                    
+                    # Check if current action is a Ride that's finishing
+                    is_ride = (isinstance(current_action, Ride) or 
+                              (isinstance(current_action, dict) and current_action.get('type') == 'Ride') or
+                              (hasattr(current_action, '__class__') and current_action.__class__.__name__ == 'Ride'))
+                    if is_ride:
+                        finishing_ride_demands.append((end_time, order, state))
+                    else:
+                        other_demands.append((end_time, order, state))
+                
+                # Update vehicle capacities for finishing Ride actions, then move to next action
+                for end_time, order, state in finishing_ride_demands:
+                    route = state["route"]
+                    actions = route.actions
+                    current_index = state["current_action_index"]
+                    current_action = actions[current_index]
+                    
+                    # Decrease vehicle capacity
+                    if isinstance(current_action, Ride):
+                        service = self._get_service_by_name(current_action.name)
+                        if service and current_action.vehicle_index < len(service.vehicles):
+                            vehicle = service.vehicles[current_action.vehicle_index]
+                            vehicle.current_capacity = max(0, vehicle.current_capacity - route.unit)
+                    
+                    # Move to next action (Ride is finished, continue with remaining actions)
+                    next_index = current_index + 1
+                    if next_index < len(actions):
+                        # Update state to point to next action
+                        state["current_action_index"] = next_index
+                        next_action = actions[next_index]
+                        next_start, next_end = get_action_times(next_action)
+                        if next_end:
+                            state["current_action_end_time"] = next_end
+                            # Add to other_demands to process next action
+                            other_demands.append((next_end, order, state))
+                        else:
+                            # Cannot determine next end time, treat as completed
+                            self.network.push_route(route)
+                            completed_routes.append((order, route))
+                    else:
+                        # No more actions, route complete
+                        self.network.push_route(route)
+                        completed_routes.append((order, route))
+                
+                # Phase 2: Process demands starting Ride actions
+                starting_ride_demands = []
+                for end_time, order, state in other_demands:
+                    route = state["route"]
+                    actions = route.actions
+                    current_index = state["current_action_index"]
+                    
+                    next_index = current_index + 1
+                    if next_index < len(actions):
+                        next_action = actions[next_index]
+                        # Check if next action is a Ride (either object or dict with type 'Ride')
+                        is_ride = (isinstance(next_action, Ride) or 
+                                  (isinstance(next_action, dict) and next_action.get('type') == 'Ride') or
+                                  (hasattr(next_action, '__class__') and next_action.__class__.__name__ == 'Ride'))
+                        if is_ride:
+                            starting_ride_demands.append((end_time, order, state))
+                        else:
+                            # Not a Ride action, process normally
+                            self._process_demand_state(state, demand_queue, completed_routes, get_action_times)
+                    else:
+                        # No next action, route complete
+                        self.network.push_route(route)
+                        completed_routes.append((order, route))
+                
+                # Process demands starting Ride actions (check capacity and potentially split)
+                for end_time, order, state in starting_ride_demands:
+                    self._process_ride_demand(state, demand_queue, completed_routes, get_action_times, order_counter)
+
+            # Sort completed routes back to original demand order
+            completed_routes.sort(key=lambda item: item[0])
+            routes = [route for _, route in completed_routes]
             
             simulation_end_time = datetime.now()
             simulation_duration = (simulation_end_time - simulation_start_time).total_seconds()
@@ -180,6 +320,22 @@ class APIServer:
                                 "end_hex": action.end_hex.hex_id,
                                 "walk_speed": action.walk_speed,
                                 "distance": action.distance
+                            })
+                        # Add specific fields for Ride actions
+                        elif hasattr(action, 'start_hex') and hasattr(action, 'end_hex') and hasattr(action, 'name'):
+                            # This is a Ride action
+                            action_data.update({
+                                "start_hex": action.start_hex,
+                                "end_hex": action.end_hex,
+                                "name": action.name,
+                                "vehicle_index": action.vehicle_index
+                            })
+                        # Add specific fields for Wait actions
+                        elif hasattr(action, 'position') and hasattr(action, 'unit'):
+                            # This is a Wait action
+                            action_data.update({
+                                "position": action.position,
+                                "unit": action.unit
                             })
                     elif isinstance(action, dict):
                         # Dictionary action
@@ -226,26 +382,284 @@ class APIServer:
                 "routes": routes_data,
                 "simulation_time": f"{simulation_duration:.2f}s",
                 "simulation_hour": simulation_hour,
-                "demands_processed": len(filtered_demands),
+                "demands_processed": len(routes),
                 "routes_generated": len(routes),
                 "total_units": sum(route.unit for route in routes),
                 "total_time_minutes": sum(route.time_taken_minutes for route in routes),
                 "total_fare": total_fare,
                 "average_fare": average_fare,
-                "network_routes_taken": len(self.network.routes_taken)
             }
             
-            # Save simulation results to file
+            # Save simulation results
             self._save_simulation_results(result, simulation_hour)
             
             return result
             
         except Exception as e:
+            print(f"Error in run_simulation: {e}")
+            traceback.print_exc()
             return {
                 "status": "error",
                 "message": f"Simulation failed: {str(e)}",
                 "routes": []
             }
+    
+    def _get_service_by_name(self, service_name: str):
+        """Get a fixed route service by name."""
+        if not hasattr(self.network, 'fixed_route_services'):
+            return None
+        for service in self.network.fixed_route_services:
+            if service.name == service_name:
+                return service
+        return None
+    
+    def _process_demand_state(self, state, demand_queue, completed_routes, get_action_times):
+        """Process a demand state that doesn't involve Ride actions."""
+        route = state["route"]
+        actions = route.actions
+        current_index = state["current_action_index"]
+        
+        current_action = actions[current_index]
+        _, current_end = get_action_times(current_action)
+        
+        next_index = current_index + 1
+        if next_index >= len(actions):
+            # Route complete
+            self.network.push_route(route)
+            completed_routes.append((state["order"], route))
+            return
+        
+        next_action = actions[next_index]
+        next_start, next_end = get_action_times(next_action)
+        
+        if next_start is None or next_end is None:
+            # Cannot determine next end time, treat as completed
+            self.network.push_route(route)
+            completed_routes.append((state["order"], route))
+            return
+        
+        # Ensure the next action starts no earlier than the previous end.
+        if next_start < current_end:
+            if isinstance(next_action, dict):
+                next_action["start_time"] = current_end
+            else:
+                next_action.start_time = current_end
+            next_start = current_end
+        
+        if next_end < next_start:
+            if isinstance(next_action, dict):
+                next_action["end_time"] = next_start
+            else:
+                next_action.end_time = next_start
+            next_end = next_start
+        
+        state["current_action_index"] = next_index
+        state["current_action_end_time"] = next_end
+        heapq.heappush(demand_queue, (next_end, state["order"], state))
+    
+    def _process_ride_demand(self, state, demand_queue, completed_routes, get_action_times, order_counter):
+        """Process a demand starting a Ride action, check capacity, and potentially split."""
+        
+        route = state["route"]
+        actions = route.actions
+        current_index = state["current_action_index"]
+        demand = state["demand"]
+        
+        current_action = actions[current_index]
+        _, current_end = get_action_times(current_action)
+        
+        next_index = current_index + 1
+        next_action = actions[next_index]
+        next_start, next_end = get_action_times(next_action)
+        
+        if not isinstance(next_action, Ride):
+            # Not a Ride action after all, process normally
+            self._process_demand_state(state, demand_queue, completed_routes, get_action_times)
+            return
+        
+        # Get the service and vehicle
+        service = self._get_service_by_name(next_action.name)
+        if not service or next_action.vehicle_index >= len(service.vehicles):
+            # Service not found or invalid vehicle index, skip Ride
+            self._process_demand_state(state, demand_queue, completed_routes, get_action_times)
+            return
+        
+        vehicle = service.vehicles[next_action.vehicle_index]
+        available_capacity = vehicle.max_capacity - vehicle.current_capacity
+        demand_units = route.unit
+        
+        if available_capacity >= demand_units:
+            # Enough capacity, board the vehicle
+            vehicle.current_capacity += demand_units
+            # Process normally
+            if next_start < current_end:
+                next_action.start_time = current_end
+                next_start = current_end
+            
+            if next_end < next_start:
+                next_action.end_time = next_start
+                next_end = next_start
+            
+            state["current_action_index"] = next_index
+            state["current_action_end_time"] = next_end
+            heapq.heappush(demand_queue, (next_end, state["order"], state))
+        else:
+            # Not enough capacity, split the demand
+            if available_capacity > 0:
+                # Clone 1: Takes available capacity on current vehicle
+                clone1_units = available_capacity
+                clone1_route = Route(unit=clone1_units, actions=actions.copy())
+                # Update the Ride action for clone1
+                clone1_ride = clone1_route.actions[next_index]
+                if next_start < current_end:
+                    clone1_ride.start_time = current_end
+                    next_start = current_end
+                if next_end < next_start:
+                    clone1_ride.end_time = next_start
+                    next_end = next_start
+                
+                vehicle.current_capacity += clone1_units
+                
+                clone1_state = {
+                    "demand": Demand(demand.hour, demand.start_hex, demand.end_hex, clone1_units),
+                    "route": clone1_route,
+                    "current_action_index": next_index,
+                    "current_action_end_time": next_end,
+                    "order": state["order"]
+                }
+                heapq.heappush(demand_queue, (next_end, clone1_state["order"], clone1_state))
+            
+            # Clone 2: Waits for next vehicle
+            clone2_units = demand_units - available_capacity
+            next_vehicle_arrival = service.get_next_vehicle_arrival(next_action.start_hex, current_end)
+            
+            if next_vehicle_arrival is None:
+                # No more vehicles, treat as completed (or handle differently)
+                clone2_route = Route(unit=clone2_units, actions=actions[:next_index].copy())
+                self.network.push_route(clone2_route)
+                completed_routes.append((state["order"], clone2_route))
+            else:
+                # Create new route with Wait action and updated Ride action
+                clone2_actions = actions[:next_index].copy()
+                
+                # Add Wait action
+                wait_action = Wait(
+                    start_time=current_end,
+                    position=next_action.start_hex,
+                    unit=clone2_units,
+                    end_time=next_vehicle_arrival
+                )
+                clone2_actions.append(wait_action)
+                
+                # Find the vehicle for the next arrival
+                next_vehicle_index = None
+                stop_index = service.stops.index(next_action.start_hex)
+                for i, v in enumerate(service.vehicles):
+                    if stop_index < len(v.timetable):
+                        arrival_time = v.timetable[stop_index].replace(second=0, microsecond=0)
+                        if arrival_time == next_vehicle_arrival.replace(second=0, microsecond=0):
+                            next_vehicle_index = i
+                            break
+                
+                if next_vehicle_index is not None:
+                    # Create new Ride action for next vehicle
+                    next_vehicle = service.vehicles[next_vehicle_index]
+                    alighting_stop_index = service.stops.index(next_action.end_hex)
+                    if alighting_stop_index < len(next_vehicle.timetable):
+                        new_ride_end_time = next_vehicle.timetable[alighting_stop_index]
+                        new_ride = Ride(
+                            start_time=next_vehicle_arrival,
+                            end_time=new_ride_end_time,
+                            name=service.name,
+                            vehicle_index=next_vehicle_index,
+                            start_hex=next_action.start_hex,
+                            end_hex=next_action.end_hex
+                        )
+                        clone2_actions.append(new_ride)
+                        
+                        # Add remaining actions and update their times
+                        remaining_actions = []
+                        if next_index + 1 < len(actions):
+                            # Calculate time shift: original Ride end_time vs new Ride end_time
+                            original_ride_end = next_action.end_time
+                            time_shift = new_ride_end_time - original_ride_end
+                            
+                            remaining_actions = actions[next_index + 1:]
+                            for remaining_action in remaining_actions:
+                                # Create a copy of the action to avoid modifying the original
+                                if hasattr(remaining_action, '__class__'):
+                                    # Action object - need to create a new instance
+                                    action_class = remaining_action.__class__
+                                    if action_class.__name__ == 'Walk':
+                                        # For Walk, we need to preserve the original duration
+                                        # because _calculate_end_time() uses hardcoded distance of 1.0
+                                        # but the actual distance might be different
+                                        new_action = Walk(
+                                            start_time=remaining_action.start_time + time_shift,
+                                            start_hex=remaining_action.start_hex,
+                                            end_hex=remaining_action.end_hex,
+                                            walk_speed=remaining_action.walk_speed
+                                        )
+                                        # Manually set end_time to preserve the original duration
+                                        if remaining_action.end_time:
+                                            new_action.end_time = remaining_action.end_time + time_shift
+                                    elif action_class.__name__ == 'Wait':
+                                        new_action = Wait(
+                                            start_time=remaining_action.start_time + time_shift,
+                                            position=remaining_action.position,
+                                            unit=remaining_action.unit,
+                                            end_time=remaining_action.end_time + time_shift if remaining_action.end_time else None
+                                        )
+                                    elif action_class.__name__ == 'Ride':
+                                        new_action = Ride(
+                                            start_time=remaining_action.start_time + time_shift,
+                                            end_time=remaining_action.end_time + time_shift,
+                                            name=remaining_action.name,
+                                            vehicle_index=remaining_action.vehicle_index,
+                                            start_hex=remaining_action.start_hex,
+                                            end_hex=remaining_action.end_hex
+                                        )
+                                    else:
+                                        # Unknown action type, just copy and shift times
+                                        new_action = remaining_action
+                                        if hasattr(new_action, 'start_time'):
+                                            new_action.start_time = remaining_action.start_time + time_shift
+                                        if hasattr(new_action, 'end_time') and remaining_action.end_time:
+                                            new_action.end_time = remaining_action.end_time + time_shift
+                                else:
+                                    # Dictionary action - create a copy and shift times
+                                    new_action = remaining_action.copy()
+                                    if 'start_time' in new_action:
+                                        if isinstance(new_action['start_time'], datetime):
+                                            new_action['start_time'] = new_action['start_time'] + time_shift
+                                    if 'end_time' in new_action and new_action['end_time']:
+                                        if isinstance(new_action['end_time'], datetime):
+                                            new_action['end_time'] = new_action['end_time'] + time_shift
+                                
+                                clone2_actions.append(new_action)
+                        
+                        clone2_route = Route(unit=clone2_units, actions=clone2_actions)
+                        # Current action index is the Wait action (just added, at position next_index)
+                        # clone2_actions = actions[:next_index] + [wait_action] + [new_ride] + remaining_actions
+                        # So wait_action is at index next_index
+                        clone2_state = {
+                            "demand": Demand(demand.hour, demand.start_hex, demand.end_hex, clone2_units),
+                            "route": clone2_route,
+                            "current_action_index": next_index,  # Wait action is at this index
+                            "current_action_end_time": next_vehicle_arrival,
+                            "order": next(order_counter)
+                        }
+                        heapq.heappush(demand_queue, (next_vehicle_arrival, clone2_state["order"], clone2_state))
+                    else:
+                        # Invalid stop index, treat as completed
+                        clone2_route = Route(unit=clone2_units, actions=clone2_actions)
+                        self.network.push_route(clone2_route)
+                        completed_routes.append((state["order"], clone2_route))
+                else:
+                    # Couldn't find next vehicle, treat as completed
+                    clone2_route = Route(unit=clone2_units, actions=clone2_actions)
+                    self.network.push_route(clone2_route)
+                    completed_routes.append((state["order"], clone2_route))
     
     def _save_simulation_results(self, result: dict, simulation_hour: int):
         """
@@ -256,10 +670,6 @@ class APIServer:
             simulation_hour (int): The hour of the simulation.
         """
         try:
-            from datetime import datetime
-            import sys
-            import traceback
-
             def safe_print(*args, **kwargs):
                 try:
                     print(*args, **kwargs)
