@@ -28,7 +28,7 @@ class Walk(Action):
         end_time: datetime,
         start_hex: Hex,
         end_hex: Hex,
-        unit: float,
+        unit: int,
         graph: nx.Graph,
         walk_speed: float = None,
     ):
@@ -42,7 +42,7 @@ class Walk(Action):
             walk_speed (float, optional): Walking speed in hexagons per hour.
                                        If None, loads from config.json.
         """
-        super().__init__(start_time, end_time, units=unit)
+        super().__init__(start_time, end_time, unit=unit)
         self.start_hex = start_hex
         self.end_hex = end_hex
         # self.graph = graph because we do not need _calculate_end_time for now

@@ -23,7 +23,7 @@ class Ride(Action):
         end_time: datetime,
         start_hex: Hex,
         end_hex: Hex,
-        unit: float,
+        unit: int,
         service=Service,
     ):
         """
@@ -36,7 +36,7 @@ class Ride(Action):
             end_hex (Hex): Destination hexagon.
             units (float): Number of units being transported.
         """
-        super().__init__(start_time, end_time, units=unit)
+        super().__init__(start_time, end_time, unit=unit)
         self.start_hex = start_hex
         self.end_hex = end_hex
         self.service = service
