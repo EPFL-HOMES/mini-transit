@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta
 from typing import List, OrderedDict, Tuple
-from src.hex import Hex
+
 import networkx as nx
 from pydantic import BaseModel, ConfigDict
+
+from src.hex import Hex
 
 
 class HexModel(BaseModel):
@@ -20,12 +22,14 @@ class FixedRouteServiceModel(BaseModel):
     ]  # List of dicts mapping stop index to (arrival_time, departure_time)
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+
 class DemandModel(BaseModel):
     time: datetime
     start_hex: Hex
     end_hex: Hex
     unit: int
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
 
 class FixedRouteServiceInput(BaseModel):
     name: str
@@ -36,12 +40,14 @@ class FixedRouteServiceInput(BaseModel):
     freq_period: List[Tuple[datetime, datetime, timedelta]]
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+
 class NetworkModel(BaseModel):
     graph: nx.Graph
     services: List[FixedRouteServiceModel]
     routes_taken: list
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
 
 class DemandInput(BaseModel):
     hour: int

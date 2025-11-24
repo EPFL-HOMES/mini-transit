@@ -5,11 +5,11 @@ from typing import List
 import pytest
 
 from src.hex import Hex
-from src.sampler import DemandSampler
 from src.models import DemandInput
-
+from src.sampler import DemandSampler
 
 # ---------- Fixtures ----------
+
 
 @pytest.fixture
 def hexes() -> List[Hex]:
@@ -22,6 +22,7 @@ def hexes() -> List[Hex]:
 
 
 # ---------- Tests ----------
+
 
 def test_zero_lambda_produces_no_demands(hexes):
     hex1, hex2, hex3, hex4 = hexes

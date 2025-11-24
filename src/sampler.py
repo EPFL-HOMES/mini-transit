@@ -3,8 +3,8 @@ import random
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from src.models import DemandInput, DemandModel
 from src.demand import Demand
+from src.models import DemandInput, DemandModel
 
 
 class DemandSampler:

@@ -1,10 +1,12 @@
-import pytest
 from datetime import datetime, timedelta
 
+import pytest
+
+from src.hex import Hex
 from src.network import Network
+
 # 🔁 CHANGE THIS to the actual module where FixedRouteService lives
 from src.services.fixedroute import FixedRouteService
-from src.hex import Hex
 
 
 class DummyNetwork(Network):
@@ -12,6 +14,7 @@ class DummyNetwork(Network):
     Simple network where every move between two different stops has distance 1,
     and staying at the same stop has distance 0.
     """
+
     def get_distance(self, a, b):
         return 0 if a == b else 1
 
@@ -98,7 +101,7 @@ def test_get_next_departure_forward_direction():
     """
     service = create_basic_service(bidirectional=True)
     start_index = 0  # "A"
-    end_index = 2    # "C"
+    end_index = 2  # "C"
 
     # Request after 08:02; first departure at stop 0 is at 08:05
     current_time = datetime(2025, 1, 1, 8, 2)
@@ -128,7 +131,7 @@ def test_get_route_returns_wait_and_ride_in_order():
     service = create_basic_service(bidirectional=True)
     start_time = datetime(2025, 1, 1, 8, 2)
     start_hex = service.stops[0]  # "A"
-    end_hex = service.stops[2]    # "C"
+    end_hex = service.stops[2]  # "C"
 
     wait, ride = service.get_route(
         unit=3,

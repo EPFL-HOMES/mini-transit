@@ -1,12 +1,13 @@
+from collections import OrderedDict
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from typing import OrderedDict as TypingOrderedDict
+from typing import Tuple
 
 from src.actions import Ride, Wait
 from src.hex import Hex
-from src.services import Service
 from src.models import NetworkModel
-from collections import OrderedDict
+from src.services import Service
 
 
 class FixedRouteService(Service):
@@ -39,9 +40,7 @@ class FixedRouteService(Service):
     ):
         super().__init__(name)
         self.stops = stops
-        self.stop_hex_lookup: Dict[Hex, int] = {
-            stop: index for index, stop in enumerate(stops)
-        }
+        self.stop_hex_lookup: Dict[Hex, int] = {stop: index for index, stop in enumerate(stops)}
         self.capacity = capacity
         self.network = network
         self.stopping_time = stopping_time
@@ -80,9 +79,7 @@ class FixedRouteService(Service):
                 distance = 0
             else:
                 prev_idx = stop_indices[pos - 1]
-                distance = self.network.get_distance(
-                    self.stops[prev_idx], self.stops[idx]
-                )
+                distance = self.network.get_distance(self.stops[prev_idx], self.stops[idx])
 
             # Travel from previous stop, then stop dwell time
             arrival_time = departure_time + distance * self.travel_time
@@ -116,18 +113,14 @@ class FixedRouteService(Service):
                 # Forward direction: 0 -> 1 -> ... -> n-1
                 forward_indices = list(range(n))
                 timetables.append(
-                    self.__build_timetable_for_direction(
-                        current_departure, forward_indices
-                    )
+                    self.__build_timetable_for_direction(current_departure, forward_indices)
                 )
 
                 # Reverse direction: n-1 -> ... -> 0 (if enabled)
                 if self.bidirectional and n > 1:
                     backward_indices = list(reversed(range(n)))
                     timetables.append(
-                        self.__build_timetable_for_direction(
-                            current_departure, backward_indices
-                        )
+                        self.__build_timetable_for_direction(current_departure, backward_indices)
                     )
 
                 current_departure += frequency
@@ -229,9 +222,7 @@ class FixedRouteService(Service):
         arrival_time, _ = vehicle.timetable[end_index]
 
         if arrival_time <= next_departure:
-            raise RuntimeError(
-                "Selected vehicle does not travel from start to end in time order"
-            )
+            raise RuntimeError("Selected vehicle does not travel from start to end in time order")
 
         wait_action = Wait(start_time, next_departure, start_hex, unit)
         ride_action = Ride(
@@ -282,9 +273,7 @@ class FixedRouteVehicle:
             ValueError: If the timetable is inconsistent.
         """
         items = list(self.timetable.items())
-        for (idx_curr, (_, depart_curr)), (idx_next, (arr_next, _)) in zip(
-            items, items[1:]
-        ):
+        for (idx_curr, (_, depart_curr)), (idx_next, (arr_next, _)) in zip(items, items[1:]):
             start_stop = self.service.stops[idx_curr]
             end_stop = self.service.stops[idx_next]
 

@@ -2,8 +2,9 @@
 Demand class representing a specific travel demand or request.
 """
 
-from .hex import Hex
 from datetime import datetime
+
+from .hex import Hex
 
 
 class Demand:
