@@ -29,6 +29,19 @@ class Route:
         self.actions = actions
         self.time_taken = self._calculate_total_time()
         self.total_fare = self._calculate_total_fare()
+        # total cost means a custom metric combining fare, time, etc.
+        self.total_cost = self._calculate_total_cost()
+
+    def _calculate_total_cost(self) -> float:
+        """
+        Calculate total cost for this route.
+        
+        For now, use a simple formula: total_cost = total_fare + (time_in_minutes * 0.3)
+        Returns:
+            float: Total cost for this route.
+        """
+        total_cost = self.total_fare + (self.time_taken.total_seconds() / 60.0) * 0.3  # Example cost metric
+        return total_cost
     
     def _calculate_total_time(self) -> timedelta:
         """

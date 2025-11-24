@@ -9,6 +9,7 @@ import json
 from src.actions.walk import Walk
 from src.services.fixedroute import FixedRouteService
 from src.services.ondemand import OnDemandRouteService
+import numpy as np
 
 # Add parent directory to path to import utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -99,6 +100,13 @@ class Network:
         start = demand.start_hex.hex_id
         end = demand.end_hex.hex_id
         demand_hour = demand.hour
+
+        walk_best_route = None
+        walk_best_cost = float('inf')
+        fixed_best_route = None
+        fixed_best_cost = float('inf')
+        ondemand_best_route = None
+        ondemand_best_cost = walk_route.total_cost if walk_route else float('inf')
         
         # 1. Try direct walk
         walk_time, walk_path = self.compute_walk_time(self.graph, start, end, walk_speed)
@@ -116,10 +124,10 @@ class Network:
         else:
             walk_route = None
 
-        # 2. Try all combinations of services
-        best_route = walk_route
-        best_time = walk_route.time_taken if walk_route else float('inf')
-        # TODO: for now implementation is for only possbilities where at most one transfer occurs
+        walk_best_route = walk_route
+        walk_best_cost = walk_route.total_cost if walk_route else float('inf')
+
+        # 2. Try other combinations of services
 
         # Current algorithm: try all pairs of services (including same service twice)
         for s1 in self.services:
@@ -141,9 +149,9 @@ class Network:
                     end_hex=end
                 )
                 route = Route(unit=demand.unit, actions=[walk_action, ride_action])
-                if route.time_taken < best_time:
-                    best_time = route.time_taken
-                    best_route = route
+                if route.total_cost < ondemand_best_cost:
+                    ondemand_best_cost = route.total_cost
+                    ondemand_best_route = route
             else: 
             # 2.2 FixedRouteService cases
                 for s2 in self.services:
@@ -167,9 +175,9 @@ class Network:
 
                             route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2])
 
-                            if route.time_taken < best_time:
-                                best_time = route.time_taken
-                                best_route = route
+                            if route.total_cost < fixed_best_cost:
+                                fixed_best_cost = route.total_cost
+                                fixed_best_route = route
 
                     # CASE 2: Try transfer via common stop
                     elif s1 != s2:
@@ -189,9 +197,9 @@ class Network:
 
                                         route = Route(unit=demand.unit, actions=[walk1, wait1, ride1, wait2, ride2, walk2])
 
-                                        if route.time_taken < best_time:
-                                            best_time = route.time_taken
-                                            best_route = route
+                                        if route.total_cost < fixed_best_cost:
+                                            fixed_best_cost = route.total_cost
+                                            fixed_best_route = route
                     
                         # CASE 3: No shared stops - try to bridge s1 and s2 via a third service
                         else:
@@ -303,9 +311,9 @@ class Network:
 
                                         route = Route(unit=demand.unit, actions=actions)
 
-                                        if route.time_taken < best_time:
-                                            best_time = route.time_taken
-                                            best_route = route
+                                        if route.total_cost < fixed_best_cost:
+                                            fixed_best_cost = route.total_cost
+                                            fixed_best_route = route
                                         found_case3 = True
 
                                 except Exception as e:
@@ -370,13 +378,27 @@ class Network:
                                             actions=[walk1, wait1, ride1, walk_transfer, wait2, ride2, walk2]
                                         )
                                         
-                                        if route.time_taken < best_time:
-                                            best_time = route.time_taken
-                                            best_route = route
+                                        if route.total_cost <fixed_best_cost:
+                                            fixed_best_cost = route.total_cost
+                                            fixed_best_route = route
                     # CASE 4: More than 2 services transfer (not implemented yet)
                         
+        # After evaluating all options, determine route probabilities negative softmax
+        choices = [walk_best_route]
+        logits = [walk_best_cost]
+        if fixed_best_route is not None:
+            logits.append(fixed_best_cost)
+            choices.append(fixed_best_route)
+        if ondemand_best_route is not None:
+            logits.append(ondemand_best_cost)
+            choices.append(ondemand_best_route)
+        exp_logits = np.exp(-np.array(logits))  # negative for softmax
+        probabilities = exp_logits / np.sum(exp_logits)
 
-        return best_route
+        # Select route based on probabilities
+        choice = np.random.choice(choices, p=probabilities)
+        return choice
+        
     
     def _load_walk_speed_from_config(self):
         """Load walking speed from config.json."""
