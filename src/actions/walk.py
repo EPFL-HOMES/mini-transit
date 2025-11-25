@@ -4,7 +4,7 @@ Walk class representing walking action in a route.
 
 from datetime import datetime, timedelta
 import networkx as nx
-from src.action import Action
+from src.actions.action import Action
 from src.hex import Hex
 import json
 import os
