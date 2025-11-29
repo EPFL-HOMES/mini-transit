@@ -13,7 +13,8 @@ import os
 
 class OnDemandRouteService(Service):
     '''
-    Represents a fixed-route transportation service.
+    Represents an on-demand transportation service - in this case simulating bike-sharing.
+    Currently the assumption is that the service represents all vehicles under the same service.
     Attributes:
         name (str): Name of the service.
         stops (List[Hex]): List of Hex objects representing the stops.
@@ -25,11 +26,11 @@ class OnDemandRouteService(Service):
     '''
 
     def __init__(self, name, 
-                 location: Hex,
+                 vehicles: List['OnDemandVehicle'],
                  capacity: float, 
                  network: Network):   # Network is required here unlike FixedRouteService
         super().__init__(name)
-        self.location = location
+        self.vehicles = vehicles  # List of OnDemandVehicle instances
         self.capacity = capacity        
         self.network = network
         
@@ -45,10 +46,15 @@ class OnDemandRouteService(Service):
         Returns:
             float: Fare amount.
         '''
-        base_fare = 6.2  # Base fare for on-demand service
-        distance = self.network.get_distance(start_hex, end_hex)
-        per_hex_rate = 1.0  # Rate per hexagon traveled
-        total_fare = base_fare + (distance * per_hex_rate)
+        base_fare = 3.0  # Base fare for the first 30 minutes for on-demand service
+        time_rate_per_minute = 0.1  # Rate per minute of travel
+        drive_time = self.compute_drive_time(start_hex, end_hex)
+        total_minutes = drive_time.total_seconds() / 60
+        if total_minutes <= 30:
+            total_fare = base_fare
+        else:
+            total_fare = base_fare + ((total_minutes - 30) * time_rate_per_minute)
+        
         return total_fare
     
     def _load_on_demand_speed_from_config(self):
@@ -98,3 +104,28 @@ class OnDemandRouteService(Service):
         )
 
         return ride_action
+    
+    
+class OnDemandVehicle:
+    '''
+    Represents a vehicle in the on-demand service.
+    
+    Attributes:
+        vehicle_id (str): Unique identifier for the vehicle.
+        current_location (Hex): Current location of the vehicle.
+        capacity (float): Maximum capacity of the vehicle.
+    '''
+    
+    def __init__(self, vehicle_id: str, current_location: Hex, capacity: float):
+        """
+        Initialize an OnDemandVehicle.
+        
+        Args:
+            vehicle_id (str): Unique identifier for the vehicle.
+            current_location (Hex): Current location of the vehicle.
+            capacity (float): Maximum capacity of the vehicle.
+        """
+        self.vehicle_id = vehicle_id
+        self.current_location = current_location
+        self.capacity = capacity
+        self.available_time = datetime.min  # Initially available

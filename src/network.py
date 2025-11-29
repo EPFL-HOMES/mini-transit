@@ -7,6 +7,7 @@ import sys
 import os
 import json
 from src.actions.walk import Walk
+from src.actions.ride import Ride
 from src.services.fixedroute import FixedRouteService
 from src.services.ondemand import OnDemandRouteService
 import numpy as np
@@ -85,6 +86,19 @@ class Network:
                 best_time = walk_time
                 best_stop = stop
         return best_stop, best_time
+    
+    def find_closest_ondemand_vehicle(self, graph, hex_id, service, walk_speed, demand_hour):
+        best_vehicle = None
+        best_time = float('inf')
+        for vehicle in service.vehicles:
+            if vehicle.available_time > demand_hour:
+                continue  # Vehicle is not available
+            vehicle_location = vehicle.current_location
+            walk_time, _ = self.compute_walk_time(graph, hex_id, vehicle_location, walk_speed)
+            if walk_time < best_time:
+                best_time = walk_time
+                best_vehicle = vehicle
+        return best_vehicle, best_time
     
     def find_service_chains(self, s_start, s_end, all_services, max_intermediaries):
         """
@@ -270,8 +284,10 @@ class Network:
 
         walk_best_route = None
         walk_best_cost = float('inf')
-        fixed_best_route = None
-        fixed_best_cost = float('inf')
+        walk_fixed_best_route = None
+        walk_fixed_best_cost = float('inf')
+        #ondemand_fixed_best_route = None
+        #ondemand_fixed_best_cost = float('inf')
         ondemand_best_route = None
         ondemand_best_cost = walk_route.total_cost if walk_route else float('inf')
         
@@ -300,25 +316,35 @@ class Network:
         for s1 in self.services:
             # 2.1 implement for all OnDemandRouteServices directly
             if isinstance(s1, OnDemandRouteService):
-                walk_time, walk_path = self.compute_walk_time(self.graph, start, s1.location, walk_speed)
-                walk_action = Walk(
+                best_vehicle, vehicle_walk_time = self.find_closest_ondemand_vehicle(self.graph, start, s1, walk_speed, demand_hour)
+                if best_vehicle is None:
+                    continue
+                # Walk to vehicle
+                walk_to_vehicle = Walk(
                     start_time=demand_hour,
+                    end_time=demand_hour + timedelta(hours=vehicle_walk_time),
                     start_hex=start,
-                    end_hex=s1.location,
+                    end_hex=best_vehicle.current_location,
                     unit=demand.unit,
-                    walk_speed=walk_speed,
-                    end_time=demand_hour + timedelta(hours=walk_time)
+                    walk_speed=walk_speed
                 )
-                ride_action = s1.get_route(
+                # Ride with vehicle
+                drive_time = s1.compute_drive_time(best_vehicle.current_location, end)
+                arrival_time = walk_to_vehicle.end_time + drive_time
+                ride_action = Ride(
+                    start_time=walk_to_vehicle.end_time,
+                    end_time=arrival_time,
+                    start_hex=best_vehicle.current_location,
+                    end_hex=end,
                     unit=demand.unit,
-                    start_time=walk_action.end_time,
-                    start_hex=s1.location,
-                    end_hex=end
+                    service=s1,
+                    vehicle=best_vehicle
                 )
-                route = Route(unit=demand.unit, actions=[walk_action, ride_action])
-                if route.total_cost < ondemand_best_cost:
-                    ondemand_best_cost = route.total_cost
-                    ondemand_best_route = route
+                ondemand_route = Route(unit=demand.unit, actions=[walk_to_vehicle, ride_action])
+                if ondemand_route.total_cost < ondemand_best_cost:
+                    ondemand_best_cost = ondemand_route.total_cost
+                    ondemand_best_route = ondemand_route
+                
             else: 
             # 2.2 FixedRouteService cases
                 for s2 in self.services:
@@ -342,9 +368,9 @@ class Network:
 
                             route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2])
 
-                            if route.total_cost < fixed_best_cost:
-                                fixed_best_cost = route.total_cost
-                                fixed_best_route = route
+                            if route.total_cost < walk_fixed_best_cost:
+                                walk_fixed_best_cost = route.total_cost
+                                walk_fixed_best_route = route
 
                     # CASE 2: Try transfer via common stop
                     elif s1 != s2:
@@ -364,9 +390,9 @@ class Network:
 
                                         route = Route(unit=demand.unit, actions=[walk1, wait1, ride1, wait2, ride2, walk2])
 
-                                        if route.total_cost < fixed_best_cost:
-                                            fixed_best_cost = route.total_cost
-                                            fixed_best_route = route
+                                        if route.total_cost < walk_fixed_best_cost:
+                                            walk_fixed_best_cost = route.total_cost
+                                            walk_fixed_best_route = route
                     
                         # CASE 3: No shared stops - try to bridge s1 and s2 via a third service
                         else:
@@ -385,9 +411,9 @@ class Network:
                                         walk_speed=walk_speed
                                     )
 
-                                    if route.total_cost < fixed_best_cost:
-                                        fixed_best_cost = route.total_cost
-                                        fixed_best_route = route
+                                    if route.total_cost < walk_fixed_best_cost:
+                                        walk_fixed_best_cost = route.total_cost
+                                        walk_fixed_best_route = route
                                         found_case3 = True
 
                                 except Exception:
@@ -451,17 +477,17 @@ class Network:
                                             actions=[walk1, wait1, ride1, walk_transfer, wait2, ride2, walk2]
                                         )
                                         
-                                        if route.total_cost <fixed_best_cost:
-                                            fixed_best_cost = route.total_cost
-                                            fixed_best_route = route
+                                        if route.total_cost <walk_fixed_best_cost:
+                                            walk_fixed_best_cost = route.total_cost
+                                            walk_fixed_best_route = route
                     # CASE 4: More than 2 services transfer (not implemented yet)
                         
         # After evaluating all options, determine route probabilities negative softmax
         choices = [walk_best_route]
         logits = [walk_best_cost]
-        if fixed_best_route is not None:
-            logits.append(fixed_best_cost)
-            choices.append(fixed_best_route)
+        if walk_fixed_best_route is not None:
+            logits.append(walk_fixed_best_cost)
+            choices.append(walk_fixed_best_route)
         if ondemand_best_route is not None:
             logits.append(ondemand_best_cost)
             choices.append(ondemand_best_route)
@@ -470,6 +496,19 @@ class Network:
 
         # Select route based on probabilities
         choice = np.random.choice(choices, p=probabilities)
+
+        #TODO: if chosen route has OnDemand, SOMEHOW set the vehicle to be used/unavailable
+        # (probably ignorable since we can just use the capacity calculation implementation methods from elsewhere) until end_time where the vehicle is free again at the new location
+        for action in choice.actions:
+            if isinstance(action, Ride) and isinstance(action.service, OnDemandRouteService):
+                # Find the vehicle that is closest to the start_hex at start_time. Should reasonably be the same one used in the Ride action.
+                best_vehicle, _ = self.find_closest_ondemand_vehicle(self.graph, action.start_hex, action.service, walk_speed, demand_hour)
+                if best_vehicle is not None:
+                    # Update vehicle's location
+                    best_vehicle.current_location = action.end_hex
+                    # simulate being unavailable until the end of the action
+                    best_vehicle.available_time = action.end_time
+                    
         return choice
         
     

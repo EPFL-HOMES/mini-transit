@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from src.action import Action
 from src.hex import Hex
 from src.services import Service
+from src.services.ondemand import OnDemandVehicle
 import json
 import os
 
@@ -15,7 +16,7 @@ class Ride(Action):
         units (float): Number of units being transported.
     """
     
-    def __init__(self, start_time: datetime, end_time: datetime, start_hex: Hex, end_hex: Hex, unit: float, service = Service):
+    def __init__(self, start_time: datetime, end_time: datetime, start_hex: Hex, end_hex: Hex, unit: float, service: Service):
         """
         Initialize a Ride action.
         
