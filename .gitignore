@@ -36,3 +36,6 @@ instance/
 *.swp
 *.swo
 *~
+
+# Poetry
+poetry.lock
