@@ -45,7 +45,7 @@ class Walk(Action):
         super().__init__(start_time, end_time, unit=unit)
         self.start_hex = start_hex
         self.end_hex = end_hex
-        # self.graph = graph because we do not need _calculate_end_time for now
+        self.graph = graph  # Store graph for distance calculation
         self.fare = 0.0  # Walking has no fare
 
         if walk_speed is None:
@@ -104,9 +104,18 @@ class Walk(Action):
         Returns:
             float: Distance in hexagons.
         """
-        # For now, return 1.0 (neighboring hexagons)
-        # In a real implementation, you'd calculate actual distance
-        return 1.0
+        if self.graph is None:
+            return 1.0  # Fallback if graph not available
+
+        try:
+            # Calculate shortest path length in hexagons
+            distance = nx.shortest_path_length(
+                self.graph, self.start_hex.hex_id, self.end_hex.hex_id
+            )
+            return float(distance)
+        except (nx.NetworkXNoPath, nx.NodeNotFound):
+            # If no path exists, return infinity or a large number
+            return float("inf")
 
     def __repr__(self):
         return f"Walk(start_time={self.start_time}, start_hex={self.start_hex}, end_hex={self.end_hex}, walk_speed={self.walk_speed})"

@@ -130,7 +130,7 @@ class FixedRouteService(Service):
     # -------------------------------------------------------------------------
     # Routing and fares
     # -------------------------------------------------------------------------
-    def __get_next_departure(
+    def get_next_departure(
         self,
         current_time: datetime,
         start_index: int,
@@ -216,7 +216,7 @@ class FixedRouteService(Service):
         end_index = self.stop_hex_lookup[end_hex]
 
         # Pick vehicle that actually travels from start to end in the right time order
-        vehicle = self.__get_next_departure(start_time, start_index, end_index)
+        vehicle = self.get_next_departure(start_time, start_index, end_index)
 
         _, next_departure = vehicle.timetable[start_index]
         arrival_time, _ = vehicle.timetable[end_index]
@@ -232,6 +232,7 @@ class FixedRouteService(Service):
             end_hex,
             unit,
             service=self,
+            vehicle=vehicle,  # Store vehicle reference
         )
 
         return wait_action, ride_action
