@@ -25,6 +25,7 @@ class Ride(Action):
         end_hex: Hex,
         unit: int,
         service=Service,
+        vehicle=None,
     ):
         """
         Initialize a Ride action.
@@ -35,9 +36,11 @@ class Ride(Action):
             start_hex (Hex): Starting hexagon.
             end_hex (Hex): Destination hexagon.
             units (float): Number of units being transported.
+            vehicle: The vehicle this ride is associated with (for capacity tracking).
         """
         super().__init__(start_time, end_time, unit=unit)
         self.start_hex = start_hex
         self.end_hex = end_hex
         self.service = service
+        self.vehicle = vehicle  # Store vehicle reference for capacity tracking
         self.fare = self.service.get_fare(start_hex, end_hex, start_time)
