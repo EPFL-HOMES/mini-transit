@@ -4,7 +4,9 @@ Route class representing a complete route taken by a unit.
 
 from datetime import datetime, timedelta
 from typing import List
-from .action import Action
+from src.actions.walk import Walk
+from src.actions.action import Action
+
 
 class Route:
     """
@@ -17,7 +19,7 @@ class Route:
         total_fare (float): Total fare for this route.
     """
     
-    def __init__(self, unit: float, actions: List[Action]=[]):
+    def __init__(self, unit: float, actions: List[Action]=[], transfers: int=0):
         """
         Initialize a Route object.
         
@@ -27,20 +29,29 @@ class Route:
         """
         self.unit = unit
         self.actions = actions
+        self.num_transfers = transfers
         self.time_taken = self._calculate_total_time()
         self.total_fare = self._calculate_total_fare()
         # total cost means a custom metric combining fare, time, etc.
         self.total_cost = self._calculate_total_cost()
 
+        
     def _calculate_total_cost(self) -> float:
         """
         Calculate total cost for this route.
-        
-        For now, use a simple formula: total_cost = total_fare + (time_in_minutes * 0.3)
+        Utility function: total_cose = - total_fare - alpha * (total_in_vehicle_time + total_access_time + total_wait_time) - phi * num_transfers
+
         Returns:
             float: Total cost for this route.
         """
-        total_cost = self.total_fare + (self.time_taken.total_seconds() / 60.0) * 0.3  # Example cost metric
+        alpha = 1.5  # Example value, can be adjusted
+        phi = 2.0    # Example value, can be adjusted
+        total_fare = self._calculate_total_fare()
+        total_in_vehicle_time = self._calculate_total_in_vehicle_time().total_seconds() / 60.0  # in minutes
+        total_access_time = self._calculate_total_access_time().total_seconds() / 60.0  # in minutes
+        total_wait_time = self._calculate_total_wait_time().total_seconds() / 60.0  # in minutes
+        total_cost = - total_fare - alpha * (total_in_vehicle_time + total_access_time + total_wait_time) - phi * self.num_transfers
+        
         return total_cost
     
     def _calculate_total_time(self) -> timedelta:
@@ -98,6 +109,62 @@ class Route:
 
         return total_fare
     
+    def _calculate_total_access_time(self) -> timedelta:
+        """
+        Calculate total access time for this route. In this context "access time" is defined as the total time spent walking aka the sum of the spent time of every "Walk" type action.
+
+        Returns:
+            timedelta: Total access time.
+        """
+        total_access_time = timedelta(0)
+        for action in self.actions:
+            if hasattr(action, 'start_time') and hasattr(action, 'end_time'):
+                # Check if action is of type Walk
+                if action.__class__.__name__ == "Walk":
+                    total_access_time += (action.end_time - action.start_time)
+            elif isinstance(action, dict) and 'start_time' in action and 'end_time' in action:
+                # Check if action is of type Walk
+                if action.get('type') == "Walk":
+                    total_access_time += (action['end_time'] - action['start_time'])
+        return total_access_time
+    
+    def _calculate_total_wait_time(self) -> timedelta:
+        """
+        Calculate total wait time for this route. In this context "wait time" is defined as the total time spent waiting aka the sum of the spent time of every "Wait" type action.
+
+        Returns:
+            timedelta: Total wait time.
+        """
+        total_wait_time = timedelta(0)
+        for action in self.actions:
+            if hasattr(action, 'start_time') and hasattr(action, 'end_time'):
+                # Check if action is of type Wait
+                if action.__class__.__name__ == "Wait":
+                    total_wait_time += (action.end_time - action.start_time)
+            elif isinstance(action, dict) and 'start_time' in action and 'end_time' in action:
+                # Check if action is of type Wait
+                if action.get('type') == "Wait":
+                    total_wait_time += (action['end_time'] - action['start_time'])
+        return total_wait_time
+    
+    def _calculate_total_in_vehicle_time(self) -> timedelta:
+        """
+        Calculate total in-vehicle time for this route. In this context "in-vehicle time" is defined as the total time spent in vehicles aka the sum of the spent time of every "Ride" type action.
+
+        Returns:
+            timedelta: Total in-vehicle time.
+        """
+        total_in_vehicle_time = timedelta(0)
+        for action in self.actions:
+            if hasattr(action, 'start_time') and hasattr(action, 'end_time'):
+                # Check if action is of type Ride
+                if action.__class__.__name__ == "Ride":
+                    total_in_vehicle_time += (action.end_time - action.start_time)
+            elif isinstance(action, dict) and 'start_time' in action and 'end_time' in action:
+                # Check if action is of type Ride
+                if action.get('type') == "Ride":
+                    total_in_vehicle_time += (action['end_time'] - action['start_time'])
+        return total_in_vehicle_time
     
     @property
     def time_taken_minutes(self) -> float:

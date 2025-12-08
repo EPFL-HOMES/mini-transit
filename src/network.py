@@ -204,6 +204,7 @@ class Network:
             sb = chain[i + 1]
 
             link = self.services_can_link(sa, sb, walk_speed)
+            # at this point we SHOULD'VE already checked that they can link in the find_service_chains step
             if not link['ok']:
                 raise Exception("Invalid link in chain")
 
@@ -262,7 +263,7 @@ class Network:
         )
         actions.append(final_walk)
 
-        return Route(unit=demand.unit, actions=actions)
+        return Route(unit=demand.unit, actions=actions, transfers=len(chain)-1)
 
     
     def get_optimal_route(self, demand):
@@ -283,13 +284,13 @@ class Network:
         demand_hour = demand.hour
 
         walk_best_route = None
-        walk_best_cost = float('inf')
+        walk_best_cost = -float('inf')
         walk_fixed_best_route = None
-        walk_fixed_best_cost = float('inf')
+        walk_fixed_best_cost = -float('inf')
         #ondemand_fixed_best_route = None
         #ondemand_fixed_best_cost = float('inf')
         ondemand_best_route = None
-        ondemand_best_cost = walk_route.total_cost if walk_route else float('inf')
+        ondemand_best_cost = walk_route.total_cost if walk_route else -float('inf')
         
         # 1. Try direct walk
         walk_time, walk_path = self.compute_walk_time(self.graph, start, end, walk_speed)
@@ -303,7 +304,7 @@ class Network:
                 end_time=demand_hour + timedelta(hours=walk_time)
             )
 
-            walk_route = Route(unit=demand.unit, actions=[walk_action])
+            walk_route = Route(unit=demand.unit, actions=[walk_action], transfers=0)
         else:
             walk_route = None
 
@@ -340,7 +341,7 @@ class Network:
                     service=s1,
                     vehicle=best_vehicle
                 )
-                ondemand_route = Route(unit=demand.unit, actions=[walk_to_vehicle, ride_action])
+                ondemand_route = Route(unit=demand.unit, actions=[walk_to_vehicle, ride_action], transfers=0)
                 if ondemand_route.total_cost < ondemand_best_cost:
                     ondemand_best_cost = ondemand_route.total_cost
                     ondemand_best_route = ondemand_route
@@ -366,7 +367,7 @@ class Network:
                             wait, ride = s1.get_route(demand.unit, walk1.end_time, s1_start, s2_end)
                             walk2 = Walk(ride.end_time, ride.end_time + timedelta(hours=s2_walk_time), s2_end, end, unit=demand.unit, walk_speed=walk_speed)
 
-                            route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2])
+                            route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2], transfers=0)
 
                             if route.total_cost < walk_fixed_best_cost:
                                 walk_fixed_best_cost = route.total_cost
@@ -388,15 +389,14 @@ class Network:
                                         wait2, ride2 = s2.get_route(demand.unit, ride1.end_time, transfer_stop, s2_end)
                                         walk2 = Walk(ride.end_time, ride.end_time + timedelta(hours=s2_walk_time), s2_end, end, unit=demand.unit, walk_speed=walk_speed)
 
-                                        route = Route(unit=demand.unit, actions=[walk1, wait1, ride1, wait2, ride2, walk2])
+                                        route = Route(unit=demand.unit, actions=[walk1, wait1, ride1, wait2, ride2, walk2], transfers=1)
 
                                         if route.total_cost < walk_fixed_best_cost:
                                             walk_fixed_best_cost = route.total_cost
                                             walk_fixed_best_route = route
                     
-                        # CASE 3: No shared stops - try to bridge s1 and s2 via a third service
+                        # CASE 3: No shared stops - try to bridge s1 and s2 via at least one intermediary service
                         else:
-                            found_case3 = False
                             chains = self.find_service_chains(s1, s2, self.services, MAX_INTERMEDIARIES)
 
                             for chain in chains:
@@ -414,75 +414,12 @@ class Network:
                                     if route.total_cost < walk_fixed_best_cost:
                                         walk_fixed_best_cost = route.total_cost
                                         walk_fixed_best_route = route
-                                        found_case3 = True
 
                                 except Exception:
                                     continue
-                            # CASE 4: Fallback — try direct walk between s1 and s2 if no s_middle found
-                            if not found_case3:
-                                closest_pair = None
-                                shortest_transfer_walk = float('inf')
-
-                                for stop1 in s1.stops:
-                                    for stop2 in s2.stops:
-                                        walk_time_between, _ = self.compute_walk_time(self.graph, stop1, stop2, walk_speed)
-                                        if walk_time_between < shortest_transfer_walk:
-                                            shortest_transfer_walk = walk_time_between
-                                            closest_pair = (stop1, stop2)
-
-                                if closest_pair:
-                                    transfer1, transfer2 = closest_pair
-
-                                    # Check valid order: s1_start → transfer1 and transfer2 → s2_end
-                                    if s1.stops.index(s1_start) < s1.stops.index(transfer1) and \
-                                    s2.stops.index(transfer2) < s2.stops.index(s2_end):
-
-                                        # Walk to start of first service
-                                        walk1 = Walk(
-                                            start_time=demand_hour,
-                                            end_time=demand_hour + s1_walk_time / 60.0,
-                                            start_hex=start,
-                                            end_hex=s1_start,
-                                            walk_speed=walk_speed
-                                        )
-
-                                        # Take first ride
-                                        wait1, ride1 = s1.get_route(demand.unit, walk1.end_time, s1_start, transfer1)
-
-                                        # Walk between transfer1 → transfer2
-                                        interline_walk_time, _ = self.compute_walk_time(self.graph, transfer1, transfer2, walk_speed)
-                                        walk_transfer = Walk(
-                                            start_time=ride1.end_time,
-                                            end_time=ride1.end_time + timedelta(hours=interline_walk_time),
-                                            start_hex=transfer1,
-                                            end_hex=transfer2,
-                                            walk_speed=walk_speed
-                                        )
-
-                                        # Take second ride
-                                        wait2, ride2 = s2.get_route(demand.unit, walk_transfer.end_time, transfer2, s2_end)
-
-                                        # Final walk
-                                        walk2 = Walk(
-                                            start_time=ride2.end_time,
-                                            end_time=ride2.end_time + s2_walk_time / 60.0,
-                                            start_hex=s2_end,
-                                            end_hex=end,
-                                            walk_speed=walk_speed
-                                        )
-
-                                        # Compile full route
-                                        route = Route(
-                                            unit=demand.unit,
-                                            actions=[walk1, wait1, ride1, walk_transfer, wait2, ride2, walk2]
-                                        )
-                                        
-                                        if route.total_cost <walk_fixed_best_cost:
-                                            walk_fixed_best_cost = route.total_cost
-                                            walk_fixed_best_route = route
-                    # CASE 4: More than 2 services transfer (not implemented yet)
                         
-        # After evaluating all options, determine route probabilities negative softmax
+        # After evaluating all options, determine route probabilities via softmax
+        # foolproofing for None routes
         choices = [walk_best_route]
         logits = [walk_best_cost]
         if walk_fixed_best_route is not None:
@@ -491,7 +428,7 @@ class Network:
         if ondemand_best_route is not None:
             logits.append(ondemand_best_cost)
             choices.append(ondemand_best_route)
-        exp_logits = np.exp(-np.array(logits))  # negative for softmax
+        exp_logits = np.exp(np.array(logits))
         probabilities = exp_logits / np.sum(exp_logits)
 
         # Select route based on probabilities
