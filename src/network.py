@@ -9,6 +9,7 @@ import sys
 import networkx as nx
 
 from src.actions.walk import Walk
+from src.hex import Hex
 from src.services.fixedroute import FixedRouteService
 
 # Add parent directory to path to import utils
@@ -71,7 +72,7 @@ class Network:
         best_stop = None
         best_time = float("inf")
         for stop in service.stops:
-            walk_time, _ = self.compute_walk_time(graph, hex_id, stop, walk_speed)
+            walk_time, _ = self.compute_walk_time(graph, hex_id, stop.hex_id, walk_speed)
             if walk_time < best_time:
                 best_time = walk_time
                 best_stop = stop
@@ -80,6 +81,7 @@ class Network:
     def get_optimal_route(self, demand):
         """
         Get the optimal route for a given demand using shortest path algorithm.
+        Searches through all fixed route services and finds the fastest route with at most one transfer.
 
         Args:
             demand: A Demand object representing the travel request.
@@ -99,120 +101,171 @@ class Network:
         # Find shortest path using NetworkX
         start = demand.start_hex.hex_id
         end = demand.end_hex.hex_id
-        demand_hour = demand.hour
+        demand_time = demand.time
 
         # 1. Try direct walk
         walk_time, walk_path = self.compute_walk_time(self.graph, start, end, walk_speed)
         if walk_time < float("inf"):
             walk_action = Walk(
-                start_time=demand_hour,
-                start_hex=start,
-                end_hex=end,
+                start_time=demand_time,
+                end_time=demand_time + timedelta(hours=walk_time),
+                start_hex=demand.start_hex,
+                end_hex=demand.end_hex,
                 unit=demand.unit,
+                graph=self.graph,
                 walk_speed=walk_speed,
-                end_time=demand_hour + timedelta(hours=walk_time),
             )
-
             walk_route = Route(unit=demand.unit, actions=[walk_action])
         else:
             walk_route = None
 
-        # 2. Try all combinations of services
         best_route = walk_route
         best_time = walk_route.time_taken if walk_route else float("inf")
-        # TODO: for now implementation is for only possbilities where at most one transfer occurs
 
-        # Current algorithm: try all pairs of services (including same service twice)
-        for s1 in self.services:
-            for s2 in self.services:
-                if not isinstance(s1, FixedRouteService) or not isinstance(s2, FixedRouteService):
+        # Get all fixed route services
+        fixed_services = [s for s in self.services if isinstance(s, FixedRouteService)]
+
+        if not fixed_services:
+            return best_route
+
+        # 2. Try direct service routes (walk to stop, ride service, walk to destination)
+        for service in fixed_services:
+            try:
+                # Find closest stops to start and end
+                start_stop, start_walk_time = self.find_closest_stop(
+                    self.graph, start, service, walk_speed
+                )
+                end_stop, end_walk_time = self.find_closest_stop(
+                    self.graph, end, service, walk_speed
+                )
+
+                if start_stop is None or end_stop is None:
                     continue
 
-                s1_start, s1_walk_time = self.find_closest_stop(self.graph, start, s1, walk_speed)
-                s2_end, s2_walk_time = self.find_closest_stop(self.graph, end, s2, walk_speed)
-
-                if s1_start is None or s2_end is None:
+                # Check if both stops are in the service
+                if start_stop not in service.stops or end_stop not in service.stops:
                     continue
 
-                # CASE 1: Same service
-                if s1 == s2 and s1_start in s1.stops and s2_end in s1.stops:
-                    idx1 = s1.stops.index(s1_start)
-                    idx2 = s1.stops.index(s2_end)
-                    if idx1 < idx2:  # Ensure forward direction along the line's actual direction
-                        walk1 = Walk(
-                            demand_hour,
-                            demand_hour + timedelta(hours=s1_walk_time),
-                            start,
-                            s1_start,
-                            unit=demand.unit,
-                            walk_speed=walk_speed,
-                        )
-                        wait, ride = s1.get_route(demand.unit, walk1.end_time, s1_start, s2_end)
-                        walk2 = Walk(
-                            ride.end_time,
-                            ride.end_time + timedelta(hours=s2_walk_time),
-                            s2_end,
-                            end,
-                            unit=demand.unit,
-                            walk_speed=walk_speed,
-                        )
+                # Try the route - get_route will find the appropriate vehicle/direction
+                try:
+                    # Walk to start stop
+                    walk1 = Walk(
+                        demand_time,
+                        demand_time + timedelta(hours=start_walk_time),
+                        Hex(start),
+                        start_stop,
+                        unit=demand.unit,
+                        graph=self.graph,
+                        walk_speed=walk_speed,
+                    )
 
-                        route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2])
+                    # Ride service (get_route handles finding the right direction/vehicle)
+                    wait, ride = service.get_route(
+                        demand.unit, walk1.end_time, start_stop, end_stop
+                    )
 
-                        if route.time_taken < best_time:
-                            best_time = route.time_taken
-                            best_route = route
+                    # Walk to destination
+                    walk2 = Walk(
+                        ride.end_time,
+                        ride.end_time + timedelta(hours=end_walk_time),
+                        end_stop,
+                        Hex(end),
+                        unit=demand.unit,
+                        graph=self.graph,
+                        walk_speed=walk_speed,
+                    )
 
-                # CASE 2: Try transfer via common stop
-                else:
-                    common_stops = set(s1.stops) & set(s2.stops)
+                    route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2])
+
+                    if route.time_taken < best_time:
+                        best_time = route.time_taken
+                        best_route = route
+                except (ValueError, RuntimeError):
+                    # Service route not available at this time, skip
+                    continue
+            except Exception:
+                continue
+
+        # 3. Try routes with one transfer (walk to stop1, ride service1, transfer, ride service2, walk to destination)
+        for service1 in fixed_services:
+            for service2 in fixed_services:
+                if service1 == service2:
+                    continue  # Already handled in direct routes
+
+                try:
+                    # Find closest stops
+                    start_stop1, start_walk_time = self.find_closest_stop(
+                        self.graph, start, service1, walk_speed
+                    )
+                    end_stop2, end_walk_time = self.find_closest_stop(
+                        self.graph, end, service2, walk_speed
+                    )
+
+                    if start_stop1 is None or end_stop2 is None:
+                        continue
+
+                    if start_stop1 not in service1.stops or end_stop2 not in service2.stops:
+                        continue
+
+                    # Find common stops for transfer
+                    common_stops = set(service1.stops) & set(service2.stops)
+
+                    if not common_stops:
+                        continue
+
+                    # Try each common stop as transfer point
                     for transfer_stop in common_stops:
-                        if (
-                            s1_start in s1.stops
-                            and transfer_stop in s1.stops
-                            and transfer_stop in s2.stops
-                            and s2_end in s2.stops
-                        ):
-                            # Ensure valid directions
-                            if s1.stops.index(s1_start) < s1.stops.index(
-                                transfer_stop
-                            ) and s2.stops.index(transfer_stop) < s2.stops.index(s2_end):
+                        try:
+                            # Try the transfer route - get_route will find the appropriate vehicle/direction
+                            # We just need to ensure we're not trying to go from a stop to itself
+                            if start_stop1 == transfer_stop or transfer_stop == end_stop2:
+                                continue
 
-                                walk1 = Walk(
-                                    demand_hour,
-                                    demand_hour + timedelta(hours=s1_walk_time),
-                                    start,
-                                    s1_start,
-                                    unit=demand.unit,
-                                    walk_speed=walk_speed,
-                                )
-                                wait1, ride1 = s1.get_route(
-                                    demand.unit, walk1.end_time, s1_start, transfer_stop
-                                )
-                                wait2, ride2 = s2.get_route(
-                                    demand.unit, ride1.end_time, transfer_stop, s2_end
-                                )
-                                walk2 = Walk(
-                                    ride.end_time,
-                                    ride.end_time + timedelta(hours=s2_walk_time),
-                                    s2_end,
-                                    end,
-                                    unit=demand.unit,
-                                    walk_speed=walk_speed,
-                                )
+                            # Walk to first service stop
+                            walk1 = Walk(
+                                demand_time,
+                                demand_time + timedelta(hours=start_walk_time),
+                                Hex(start),
+                                start_stop1,
+                                unit=demand.unit,
+                                graph=self.graph,
+                                walk_speed=walk_speed,
+                            )
 
-                                route = Route(
-                                    unit=demand.unit,
-                                    actions=[walk1, wait1, ride1, wait2, ride2, walk2],
-                                )
+                            # Ride first service to transfer stop
+                            wait1, ride1 = service1.get_route(
+                                demand.unit, walk1.end_time, start_stop1, transfer_stop
+                            )
 
-                                if route.time_taken < best_time:
-                                    best_time = route.time_taken
-                                    best_route = route
+                            # Ride second service from transfer stop
+                            wait2, ride2 = service2.get_route(
+                                demand.unit, ride1.end_time, transfer_stop, end_stop2
+                            )
 
-                # TODO: future cases:
-                # CASE 3: Different services with no common stop (not implemented yet) aka literally walk the gap between services
-                # CASE 4: More than 2 services transfer (not implemented yet)
+                            # Walk to destination
+                            walk2 = Walk(
+                                ride2.end_time,
+                                ride2.end_time + timedelta(hours=end_walk_time),
+                                end_stop2,
+                                Hex(end),
+                                unit=demand.unit,
+                                graph=self.graph,
+                                walk_speed=walk_speed,
+                            )
+
+                            route = Route(
+                                unit=demand.unit,
+                                actions=[walk1, wait1, ride1, wait2, ride2, walk2],
+                            )
+
+                            if route.time_taken < best_time:
+                                best_time = route.time_taken
+                                best_route = route
+                        except (ValueError, RuntimeError):
+                            # Transfer route not available at this time, skip
+                            continue
+                except Exception:
+                    continue
 
         return best_route
 
