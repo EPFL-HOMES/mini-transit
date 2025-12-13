@@ -25,7 +25,8 @@ class Ride(Action):
         start_hex: Hex,
         end_hex: Hex,
         unit: int,
-        service=Service,
+        service: Service,
+        vehicle=None, # for OnDemand Vehicles in particular
     ):
         """
         Initialize a Ride action.
@@ -41,4 +42,5 @@ class Ride(Action):
         self.start_hex = start_hex
         self.end_hex = end_hex
         self.service = service
+        self.vehicle = vehicle
         self.fare = self.service.get_fare(start_hex, end_hex, start_time)

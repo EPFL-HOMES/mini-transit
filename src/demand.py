@@ -40,7 +40,7 @@ class Demand:
         if not isinstance(other, Demand):
             return False
         return (
-            self.hour == other.hour
+            self.time == other.time
             and self.start_hex == other.start_hex
             and self.end_hex == other.end_hex
         )
