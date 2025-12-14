@@ -7,7 +7,6 @@ from typing import Tuple
 
 from src.actions import Ride, Wait
 from src.hex import Hex
-from src.network import Network
 from src.route import Route
 from src.services import Service
 
@@ -27,7 +26,7 @@ class OnDemandRouteService(Service):
     """
 
     def __init__(
-        self, name, vehicles: List["OnDemandVehicle"], capacity: float, network: Network
+        self, name, vehicles: List["OnDemandVehicle"], capacity: float, network
     ):  # Network is required here unlike FixedRouteService
         super().__init__(name)
         self.vehicles = vehicles  # List of OnDemandVehicle instances
@@ -111,7 +110,7 @@ class OnDemandRouteServiceDocked(OnDemandRouteService):
         name,
         vehicles: List["OnDemandVehicle"],
         capacity: float,
-        network: Network,
+        network,
         docking_stations: List["DockingStation"],
     ):
         super().__init__(name, vehicles, capacity, network)
@@ -194,7 +193,7 @@ class OnDemandRouteServiceDockless(OnDemandRouteService):
     Inherits from OnDemandRouteService.
     """
 
-    def __init__(self, name, vehicles: List["OnDemandVehicle"], capacity: float, network: Network):
+    def __init__(self, name, vehicles: List["OnDemandVehicle"], capacity: float, network):
         super().__init__(name, vehicles, capacity, network)
         # No docking stations for dockless service
 
