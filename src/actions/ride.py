@@ -5,8 +5,7 @@ from datetime import datetime, timedelta
 from src.actions.action import Action
 from src.hex import Hex
 from src.services import Service
-import json
-import os
+
 
 class Ride(Action):
     """
@@ -26,7 +25,7 @@ class Ride(Action):
         end_hex: Hex,
         unit: int,
         service: Service,
-        vehicle=None, # for OnDemand Vehicles in particular
+        vehicle=None,  # for OnDemand Vehicles in particular
     ):
         """
         Initialize a Ride action.
