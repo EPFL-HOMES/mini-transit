@@ -9,6 +9,7 @@ import sys
 import networkx as nx
 
 from src.actions.walk import Walk
+from src.hex import Hex
 from src.actions.ride import Ride
 from src.services.fixedroute import FixedRouteService
 from src.services.ondemand import *
@@ -306,6 +307,7 @@ class Network:
     def get_optimal_route(self, demand, second_try=False):
         """
         Get the optimal route for a given demand using shortest path algorithm.
+        Searches through all fixed route services and finds the fastest route with at most one transfer.
 
         Args:
             demand: A Demand object representing the travel request.
@@ -317,8 +319,8 @@ class Network:
         
         walk_speed = self._load_walk_speed_from_config()
         # Find shortest path using NetworkX
-        start = demand.start_hex.hex_id
-        end = demand.end_hex.hex_id
+        start = demand.start_hex
+        end = demand.end_hex
         demand_time = demand.time
 
         walk_best_route = None
@@ -329,7 +331,8 @@ class Network:
         #ondemand_fixed_best_cost = float('inf')
         ondemanddocked_best_route = None
         ondemanddockless_best_route = None
-        ondemanddocked_best_cost = walk_route.total_cost if walk_route else -float('inf')
+        ondemanddocked_best_cost = -float('inf')
+        ondemanddockless_best_cost = -float('inf')
         
         # 1. Try direct walk
         walk_time, walk_path = self.compute_walk_time(self.graph, start, end, walk_speed)
@@ -339,6 +342,7 @@ class Network:
                 start_hex=start,
                 end_hex=end,
                 unit=demand.unit,
+                graph=self.graph,
                 walk_speed=walk_speed,
                 end_time=demand_time + timedelta(hours=walk_time),
             )
@@ -350,62 +354,224 @@ class Network:
         walk_best_route = walk_route
         walk_best_cost = walk_route.total_cost if walk_route else float('inf')
 
-        # 2. Try other combinations of services
+        # Get all different route services
+        fixed_services = [s for s in self.services if isinstance(s, FixedRouteService)]
+        ondemandservices_docked = [s for s in self.services if isinstance(s, OnDemandRouteServiceDocked)]
+        ondemandservices_dockless = [s for s in self.services if isinstance(s, OnDemandRouteServiceDockless)]
 
-        # Current algorithm: try all pairs of services (including same service twice)
-        for s1 in self.services:
-            # 2.1.1 implement for all OnDemandRouteServiceDocked directly
-            if isinstance(s1, OnDemandRouteServiceDocked):
-                if second_try:
-                    continue  # skip docked services altogether on second try
 
-                best_start_dock, vehicle_walk_time = self.find_closest_ondemand_dock(self.graph, start, s1, walk_speed, radius=2)
-                if best_start_dock is None: # aka literally no docks at all within the radius
+        # 2. Try direct service routes (walk to stop, ride service, walk to destination)
+        for service in fixed_services:
+            try:
+                # Find closest stops to start and end
+                start_stop, start_walk_time = self.find_closest_stop(
+                    self.graph, start, service, walk_speed
+                )
+                end_stop, end_walk_time = self.find_closest_stop(
+                    self.graph, end, service, walk_speed
+                )
+
+                if start_stop is None or end_stop is None:
                     continue
-                best_end_dock, off_vehicle_walk_time = self.find_closest_ondemand_dock(self.graph, end, s1, walk_speed, radius=2)
-                # Walk to vehicle
-                walk_to_vehicle = Walk(
-                    start_time=demand_time,
-                    end_time=demand_time + timedelta(hours=vehicle_walk_time),
-                    start_hex=start,
-                    end_hex=best_start_dock.location,
-                    unit=demand.unit,
-                    walk_speed=walk_speed
-                )
-                vehicle, _ = best_start_dock.take_vehicle()
-                if vehicle is None: # no available vehicle at the dock
-                    # try to find another route without docked OnDemand service
-                    demand.time = walk_to_vehicle.end_time
-                    return self.get_optimal_route(demand, second_try=True)
-                # below case for when there IS an available vehicle
-                # Ride with vehicle
-                drive_time = s1.compute_drive_time(best_start_dock.location, end)
-                arrival_time = walk_to_vehicle.end_time + drive_time
-                ride_action = Ride(
-                    start_time=walk_to_vehicle.end_time,
-                    end_time=arrival_time,
-                    start_hex=best_start_dock.location,
-                    end_hex=best_end_dock.location,
-                    unit=demand.unit,
-                    service=s1,
-                    vehicle=vehicle
-                )
-                walk_from_vehicle = Walk(
-                    start_time=ride_action.end_time,
-                    end_time=ride_action.end_time + timedelta(hours=off_vehicle_walk_time),
-                    start_hex=best_end_dock.location,
-                    end_hex=end,
-                    unit=demand.unit,
-                    walk_speed=walk_speed
-                )
-                ondemand_route = Route(unit=demand.unit, actions=[walk_to_vehicle, ride_action, walk_from_vehicle], transfers=0)
-                if ondemand_route.total_cost < ondemanddocked_best_cost:
-                    ondemanddocked_best_cost = ondemand_route.total_cost
-                    ondemanddocked_best_route = ondemand_route
-            elif isinstance(s1, OnDemandRouteServiceDockless):
-                best_vehicle, vehicle_walk_time = self.find_closest_ondemand_vehicle(self.graph, start, s1, walk_speed, demand_time, radius=2)
-                if best_vehicle is None: # aka literally no vehicles at all within the radius
+
+                # Check if both stops are in the service
+                if start_stop not in service.stops or end_stop not in service.stops:
                     continue
+
+                # Try the route - get_route will find the appropriate vehicle/direction
+                try:
+                    # Walk to start stop
+                    walk1 = Walk(
+                        demand_time,
+                        demand_time + timedelta(hours=start_walk_time),
+                        start,
+                        start_stop,
+                        unit=demand.unit,
+                        graph=self.graph,
+                        walk_speed=walk_speed,
+                    )
+
+                    # Ride service (get_route handles finding the right direction/vehicle)
+                    wait, ride = service.get_route(
+                        demand.unit, walk1.end_time, start_stop, end_stop
+                    )
+
+                    # Walk to destination
+                    walk2 = Walk(
+                        ride.end_time,
+                        ride.end_time + timedelta(hours=end_walk_time),
+                        end_stop,
+                        end,
+                        unit=demand.unit,
+                        graph=self.graph,
+                        walk_speed=walk_speed,
+                    )
+
+                    route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2], transfers=0)
+
+                    if route.total_cost < walk_fixed_best_cost:
+                        walk_fixed_best_cost = route.total_cost
+                        walk_fixed_best_route = route
+                except Exception:
+                    # Service route not available at this time, skip
+                    continue
+            except Exception:
+                continue
+
+        # 3. Try routes with one transfer (walk to stop1, ride service1, transfer, ride service2, walk to destination)
+        for service1 in fixed_services:
+            for service2 in fixed_services:
+                if service1 == service2:
+                    continue  # Already handled in direct routes
+
+                try:
+                    # Find closest stops
+                    start_stop1, start_walk_time = self.find_closest_stop(
+                        self.graph, start, service1, walk_speed
+                    )
+                    end_stop2, end_walk_time = self.find_closest_stop(
+                        self.graph, end, service2, walk_speed
+                    )
+
+                    if start_stop1 is None or end_stop2 is None:
+                        continue
+
+                    if start_stop1 not in service1.stops or end_stop2 not in service2.stops:
+                        continue
+
+                    # Find common stops for transfer
+                    common_stops = set(service1.stops) & set(service2.stops)
+
+                    if common_stops:
+                        # Try each common stop as transfer point
+                        for transfer_stop in common_stops:
+                            # Try the transfer route - get_route will find the appropriate vehicle/direction
+                            # We just need to ensure we're not trying to go from a stop to itself
+                            if start_stop1 == transfer_stop or transfer_stop == end_stop2:
+                                continue
+                            try:
+                                # Walk to first service stop
+                                walk1 = Walk(
+                                    demand_time,
+                                    demand_time + timedelta(hours=start_walk_time),
+                                    start,
+                                    start_stop1,
+                                    unit=demand.unit,
+                                    graph=self.graph,
+                                    walk_speed=walk_speed,
+                                )
+
+                                # Ride first service to transfer stop
+                                wait1, ride1 = service1.get_route(
+                                    demand.unit, walk1.end_time, start_stop1, transfer_stop
+                                )
+
+                                # Ride second service from transfer stop
+                                wait2, ride2 = service2.get_route(
+                                    demand.unit, ride1.end_time, transfer_stop, end_stop2
+                                )
+
+                                # Walk to destination
+                                walk2 = Walk(
+                                    ride2.end_time,
+                                    ride2.end_time + timedelta(hours=end_walk_time),
+                                    end_stop2,
+                                    end,
+                                    unit=demand.unit,
+                                    graph=self.graph,
+                                    walk_speed=walk_speed,
+                                )
+
+                                route = Route(
+                                    unit=demand.unit,
+                                    actions=[walk1, wait1, ride1, wait2, ride2, walk2],
+                                    transfers=1,
+                                )
+
+                                if route.total_cost < walk_fixed_best_cost:
+                                    walk_fixed_best_cost = route.total_cost
+                                    walk_fixed_best_route = route
+                            except Exception:
+                                # Service route not available at this time, skip
+                                continue    
+                    else:
+                        chains = self.find_service_chains(service1, service2, fixed_services, MAX_INTERMEDIARIES)
+
+                        for chain in chains:
+                            try:
+                                route = self.build_route_for_chain(
+                                    chain=chain,
+                                    start=start,
+                                    end=end,
+                                    demand_time=demand_time,
+                                    demand=demand,
+                                    graph=self.graph,
+                                    walk_speed=walk_speed
+                                )
+
+                                if route.total_cost < walk_fixed_best_cost:
+                                    walk_fixed_best_cost = route.total_cost
+                                    walk_fixed_best_route = route
+
+                            except Exception:
+                                continue
+                except Exception:
+                    continue
+
+        if not second_try:
+            for service in ondemandservices_docked:
+                try:
+                    best_start_dock, vehicle_walk_time = self.find_closest_ondemand_dock(self.graph, start, service, walk_speed, radius=2)
+                    if best_start_dock is None: # aka literally no docks at all within the radius
+                        continue
+                    best_end_dock, off_vehicle_walk_time = self.find_closest_ondemand_dock(self.graph, end, service, walk_speed, radius=2)
+                    # Walk to vehicle
+                    walk_to_vehicle = Walk(
+                        start_time=demand_time,
+                        end_time=demand_time + timedelta(hours=vehicle_walk_time),
+                        start_hex=start,
+                        end_hex=best_start_dock.location,
+                        unit=demand.unit,
+                        walk_speed=walk_speed
+                    )
+                    vehicle, _ = best_start_dock.take_vehicle()
+                    if vehicle is None: # no available vehicle at the dock
+                        # try to find another route without docked OnDemand service
+                        demand.time = walk_to_vehicle.end_time
+                        return self.get_optimal_route(demand, second_try=True)
+                    # below case for when there IS an available vehicle
+                    # Ride with vehicle
+                    drive_time = service.compute_drive_time(best_start_dock.location, end)
+                    arrival_time = walk_to_vehicle.end_time + drive_time
+                    ride_action = Ride(
+                        start_time=walk_to_vehicle.end_time,
+                        end_time=arrival_time,
+                        start_hex=best_start_dock.location,
+                        end_hex=best_end_dock.location,
+                        unit=demand.unit,
+                        service=service,
+                        vehicle=vehicle
+                    )
+                    walk_from_vehicle = Walk(
+                        start_time=ride_action.end_time,
+                        end_time=ride_action.end_time + timedelta(hours=off_vehicle_walk_time),
+                        start_hex=best_end_dock.location,
+                        end_hex=end,
+                        unit=demand.unit,
+                        walk_speed=walk_speed
+                    )
+                    ondemand_route = Route(unit=demand.unit, actions=[walk_to_vehicle, ride_action, walk_from_vehicle], transfers=0)
+                    if ondemand_route.total_cost < ondemanddocked_best_cost:
+                        ondemanddocked_best_cost = ondemand_route.total_cost
+                        ondemanddocked_best_route = ondemand_route
+                except Exception:
+                    continue
+
+        for service in ondemandservices_dockless:
+            best_vehicle, vehicle_walk_time = self.find_closest_ondemand_vehicle(self.graph, start, service, walk_speed, demand_time, radius=2)
+            if best_vehicle is None: # aka literally no vehicles at all within the radius
+                continue
+            try:
                 # Walk to vehicle
                 walk_to_vehicle = Walk(
                     start_time=demand_time,
@@ -416,7 +582,7 @@ class Network:
                     walk_speed=walk_speed
                 )
                 # Ride with vehicle
-                drive_time = s1.compute_drive_time(best_vehicle.current_location, end)
+                drive_time = service.compute_drive_time(best_vehicle.current_location, end)
                 arrival_time = walk_to_vehicle.end_time + drive_time
                 ride_action = Ride(
                     start_time=walk_to_vehicle.end_time,
@@ -424,85 +590,16 @@ class Network:
                     start_hex=best_vehicle.current_location,
                     end_hex=end,
                     unit=demand.unit,
-                    service=s1,
+                    service=service,
                     vehicle=best_vehicle
                 )
                 ondemand_route = Route(unit=demand.unit, actions=[walk_to_vehicle, ride_action], transfers=0)
                 if ondemand_route.total_cost < ondemanddockless_best_cost:
                     ondemanddockless_best_cost = ondemand_route.total_cost
                     ondemanddockless_best_route = ondemand_route
-            else: 
-            # 2.2 FixedRouteService cases
-                for s2 in self.services:
-                    if not isinstance(s1, FixedRouteService) or not isinstance(s2, FixedRouteService):
-                        continue
+            except Exception:
+                continue
 
-                    s1_start, s1_walk_time = self.find_closest_stop(self.graph, start, s1, walk_speed)
-                    s2_end, s2_walk_time = self.find_closest_stop(self.graph, end, s2, walk_speed)
-
-                    if s1_start is None or s2_end is None:
-                        continue
-
-                    # CASE 1: Same service
-                    if s1 == s2 and s1_start in s1.stops and s2_end in s1.stops:
-                        idx1 = s1.stops.index(s1_start)
-                        idx2 = s1.stops.index(s2_end)
-                        if idx1 < idx2:  # Ensure forward direction along the line's actual direction   
-                            walk1 = Walk(demand_time, demand_time + timedelta(hours=s1_walk_time), start, s1_start, unit=demand.unit, walk_speed=walk_speed)
-                            wait, ride = s1.get_route(demand.unit, walk1.end_time, s1_start, s2_end)
-                            walk2 = Walk(ride.end_time, ride.end_time + timedelta(hours=s2_walk_time), s2_end, end, unit=demand.unit, walk_speed=walk_speed)
-
-                            route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2], transfers=0)
-
-                            if route.total_cost < walk_fixed_best_cost:
-                                walk_fixed_best_cost = route.total_cost
-                                walk_fixed_best_route = route
-
-                    # CASE 2: Try transfer via common stop
-                    else:
-                        common_stops = set(s1.stops) & set(s2.stops)
-                        if common_stops:
-                            for transfer_stop in common_stops:
-                                if (s1_start in s1.stops and transfer_stop in s1.stops and
-                                    transfer_stop in s2.stops and s2_end in s2.stops):
-                                    # Ensure valid directions
-                                    if s1.stops.index(s1_start) < s1.stops.index(transfer_stop) and \
-                                    s2.stops.index(transfer_stop) < s2.stops.index(s2_end):
-
-                                        walk1 = Walk(demand_time, demand_time + timedelta(hours=s1_walk_time), start, s1_start, unit=demand.unit, walk_speed=walk_speed)
-                                        wait1, ride1 = s1.get_route(demand.unit, walk1.end_time, s1_start, transfer_stop)
-                                        wait2, ride2 = s2.get_route(demand.unit, ride1.end_time, transfer_stop, s2_end)
-                                        walk2 = Walk(ride.end_time, ride.end_time + timedelta(hours=s2_walk_time), s2_end, end, unit=demand.unit, walk_speed=walk_speed)
-
-                                        route = Route(unit=demand.unit, actions=[walk1, wait1, ride1, wait2, ride2, walk2], transfers=1)
-
-                                        if route.total_cost < walk_fixed_best_cost:
-                                            walk_fixed_best_cost = route.total_cost
-                                            walk_fixed_best_route = route
-                    
-                        # CASE 3: No shared stops - try to bridge s1 and s2 via at least one intermediary service
-                        else:
-                            chains = self.find_service_chains(s1, s2, self.services, MAX_INTERMEDIARIES)
-
-                            for chain in chains:
-                                try:
-                                    route = self.build_route_for_chain(
-                                        chain=chain,
-                                        start=start,
-                                        end=end,
-                                        demand_time=demand_time,
-                                        demand=demand,
-                                        graph=self.graph,
-                                        walk_speed=walk_speed
-                                    )
-
-                                    if route.total_cost < walk_fixed_best_cost:
-                                        walk_fixed_best_cost = route.total_cost
-                                        walk_fixed_best_route = route
-
-                                except Exception:
-                                    continue
-                        
         # After evaluating all options, determine route probabilities via softmax
         # foolproofing for None routes
         choices = [walk_best_route]
@@ -535,8 +632,7 @@ class Network:
                     vehicle.available_time = action.end_time
                     
         return choice
-        
-    
+
     def _load_walk_speed_from_config(self):
         """Load walking speed from config.json."""
         try:

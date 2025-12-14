@@ -56,17 +56,21 @@ class DemandSampler:
     def _sample_time_within_hour(self, base_time):
         """
         Sample a time uniformly within the hour starting at base_time.
+        Returns a datetime with integer minutes only (seconds set to 0).
 
         If base_time is a datetime, return a datetime in [base_time, base_time + 1h).
-        If it's numeric (e.g., hour index), return a float hour + U(0,1).
+        If it's numeric (e.g., hour index), convert to datetime and return datetime in [hour, hour+1).
         """
-        u = self.rng.random()
+        # Sample a random minute (0-59) within the hour
+        minute = self.rng.randint(0, 59)
 
         if isinstance(base_time, datetime):
-            return base_time + timedelta(seconds=3600 * u)
+            return base_time.replace(minute=minute, second=0, microsecond=0)
         else:
-            # assume base_time is something like 0, 1, 2, ...
-            return base_time + u
+            # assume base_time is something like 0, 1, 2, ... (hour index)
+            # Convert to datetime using a base date
+            hour = int(base_time)
+            return datetime(2024, 1, 1, hour, minute, 0)
 
     # ------------------------ Public API ------------------------ #
     def sample_hourly_demand(self, demand_inputs: List[DemandInput]) -> List[DemandModel]:

@@ -12,10 +12,10 @@ class Demand:
     Represents a specific travel demand or request.
 
     Attributes:
-        hour (int): The hour at which the demand occurs.
+        time (datetime): The time at which the demand occurs.
         start_hex (Hex): The starting hexagonal cell for the demand.
         end_hex (Hex): The destination hexagonal cell for the demand.
-        unit (float): A numerical value associated with the demand (e.g., number of passengers, weight).
+        unit (int): A numerical value associated with the demand (e.g., number of passengers, weight).
     """
 
     def __init__(self, time: datetime, start_hex: Hex, end_hex: Hex, unit: int):

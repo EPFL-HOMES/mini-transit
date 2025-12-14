@@ -1,4 +1,7 @@
 {
     "walk_speed": 10.0,
+    "unit_sizes": [5],
+    "seed": null,
+    "sampling": true,
     "on_demand_speed": 35.0
 }
