@@ -44,14 +44,30 @@ class OnDemandRouteService(Service):
         Returns:
             float: Fare amount.
         """
-        base_fare = 3.0  # Base fare for the first 30 minutes for on-demand service
-        time_rate_per_minute = 0.1  # Rate per minute of travel
+
+        def _read_ondemand_fare_params_from_config():
+            # Placeholder for reading from config
+            config_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "../../data/config.json"
+            )
+            with open(config_path, "r") as f:
+                config = json.load(f)
+            base_fare = config.get("ondemand_base_fare", 3.0)  # Default to 3.0 if not specified
+            time_rate_per_minute = config.get(
+                "ondemand_time_rate_per_minute", 0.1
+            )  # Default to 0.1 if not specified
+            cutoff_minutes = config.get(
+                "ondemand_base_time_cutoff_minutes", 30
+            )  # Default to 30 if not specified
+            return base_fare, time_rate_per_minute, cutoff_minutes
+
+        base_fare, time_rate_per_minute, cutoff_minutes = _read_ondemand_fare_params_from_config()
         drive_time = self.compute_drive_time(start_hex, end_hex)
         total_minutes = drive_time.total_seconds() / 60
-        if total_minutes <= 30:
+        if total_minutes <= cutoff_minutes:
             total_fare = base_fare
         else:
-            total_fare = base_fare + ((total_minutes - 30) * time_rate_per_minute)
+            total_fare = base_fare + ((total_minutes - cutoff_minutes) * time_rate_per_minute)
 
         return total_fare
 

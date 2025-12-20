@@ -2,6 +2,8 @@
 Route class representing a complete route taken by a unit.
 """
 
+import json
+import os
 from datetime import datetime, timedelta
 from typing import List
 
@@ -43,8 +45,19 @@ class Route:
         Returns:
             float: Total cost for this route.
         """
-        alpha = 1.5  # Example value, can be adjusted
-        phi = 2.0  # Example value, can be adjusted
+
+        def _read_utility_function_params_from_config():
+            # Placeholder for reading from config
+            config_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "../../data/config.json"
+            )
+            with open(config_path, "r") as f:
+                config = json.load(f)
+            alpha = config.get("utility_function_alpha", 1.5)  # Default to 1.5 if not specified
+            phi = config.get("utility_function_phi", 2.0)  # Default to 2.0 if not specified
+            return alpha, phi
+
+        alpha, phi = _read_utility_function_params_from_config()
         total_fare = self._calculate_total_fare()
         total_in_vehicle_time = (
             self._calculate_total_in_vehicle_time().total_seconds() / 60.0
