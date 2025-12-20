@@ -1,3 +1,5 @@
+import json
+import os
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from typing import Dict, List
@@ -185,7 +187,17 @@ class FixedRouteService(Service):
 
     def get_fare(self, start_hex, end_hex, time=None) -> float:
         # Simple flat fare for now
-        return 2.40
+        def _read_fixedroute_base_fare_from_config():
+            # Placeholder for reading from config
+            config_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "../../data/config.json"
+            )
+            with open(config_path, "r") as f:
+                config = json.load(f)
+            base = config.get("fixedroute_base_fare", 2.4)  # Default to 2.4 if not specified
+            return base
+
+        return _read_fixedroute_base_fare_from_config()
 
     def get_route(
         self,

@@ -24,8 +24,8 @@ class Ride(Action):
         start_hex: Hex,
         end_hex: Hex,
         unit: int,
-        service=Service,
-        vehicle=None,
+        service: Service,
+        vehicle=None,  # for OnDemand Vehicles in particular
     ):
         """
         Initialize a Ride action.
