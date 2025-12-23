@@ -51,6 +51,7 @@ class FixedRouteService(Service):
         self.vehicles = [
             FixedRouteVehicle(self, timetable=t) for t in timetables
         ]  # List of OrderedDicts mapping stop index to (arrival_time, departure_time)
+ 
 
     # -------------------------------------------------------------------------
     # Timetable construction
@@ -299,3 +300,6 @@ class FixedRouteVehicle:
         if self.current_load - unit < 0:
             raise ValueError("Cannot unload more passengers than currently loaded")
         self.current_load -= unit
+
+    def __repr__(self):
+        return f"FixedRouteVehicle(service={self.service.name}, timetable={self.timetable})"
