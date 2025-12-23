@@ -51,7 +51,7 @@ class FixedRouteService(Service):
         self.vehicles = [
             FixedRouteVehicle(self, timetable=t) for t in timetables
         ]  # List of OrderedDicts mapping stop index to (arrival_time, departure_time)
- 
+
 
     # -------------------------------------------------------------------------
     # Timetable construction

@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation Visualization - Debug Tool</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .sidebar {
+            width: 400px;
+            background: white;
+            border-left: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            background: #2196F3;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        
+        .control-panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        
+        .control-panel h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+            font-size: 12px;
+        }
+        
+        .control-group select,
+        .control-group input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .time-display {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #2196F3;
+            margin-top: 5px;
+        }
+        
+        .btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .btn:hover:not(:disabled) {
+            background: #45a049;
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #2196F3;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #1976D2;
+        }
+        
+        .event-queue {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background: #fafafa;
+        }
+        
+        .event-item {
+            padding: 8px;
+            margin-bottom: 5px;
+            background: white;
+            border-radius: 4px;
+            border-left: 3px solid #2196F3;
+            font-size: 12px;
+        }
+        
+        .stats-window {
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        
+        .stats-window h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .stats-item {
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .stats-item strong {
+            color: #555;
+        }
+        
+        .back-btn {
+            background: #666;
+            margin-top: 10px;
+        }
+        
+        .back-btn:hover:not(:disabled) {
+            background: #555;
+        }
+        
+        .playback-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .playback-controls button {
+            flex: 1;
+            padding: 8px;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .vehicle-marker {
+            transition: transform 0.3s ease;
+        }
+        
+        .vehicle-marker:hover {
+            transform: scale(1.3);
+        }
+        
+        .service-label {
+            pointer-events: none;
+        }
+        
+        .stop-marker {
+            z-index: 1000 !important;
+        }
+        
+        .vehicle-marker {
+            z-index: 900 !important;
+        }
+        
+        .unit-marker {
+            z-index: 800 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+        
+        <div class="sidebar">
+            <div class="sidebar-header">
+                Simulation Debug Tool
+            </div>
+            <div class="sidebar-content">
+                <div class="control-panel">
+                    <h3>Simulation Controls</h3>
+                    <div class="control-group">
+                        <label for="citySelect">City:</label>
+                        <select id="citySelect">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="hourSelect">Simulation Hour:</label>
+                        <input type="range" id="hourSelect" min="0" max="23" value="8" step="1">
+                        <div class="time-display" id="timeDisplay">08:00</div>
+                    </div>
+                    <button class="btn" id="initBtn">Initialize Simulation</button>
+                    <button class="btn btn-secondary" id="runBtn" disabled>Run Simulation</button>
+                </div>
+                
+                <div class="control-panel">
+                    <h3>Playback Controls</h3>
+                    <div class="playback-controls">
+                        <button class="btn" id="playBtn" disabled>▶ Play</button>
+                        <button class="btn" id="pauseBtn" disabled>⏸ Pause</button>
+                        <button class="btn" id="resetBtn" disabled>⏮ Reset</button>
+                    </div>
+                    <div class="control-group">
+                        <label for="speedSlider">Speed:</label>
+                        <input type="range" id="speedSlider" min="0.5" max="30" value="5" step="0.5">
+                        <div style="text-align: center; font-size: 12px; color: #666;" id="speedDisplay">5x</div>
+                    </div>
+                </div>
+                
+                <div class="stats-window" id="statsWindow">
+                    <h3>Simulation Stats</h3>
+                    <div class="stats-item"><strong>Current Time:</strong> <span id="currentTime">--:--:--</span></div>
+                    <div class="stats-item"><strong>Status:</strong> <span id="simStatus">Not initialized</span></div>
+                    <div class="stats-item"><strong>Units:</strong> <span id="unitCount">0</span></div>
+                    <div class="stats-item"><strong>Vehicles:</strong> <span id="vehicleCount">0</span></div>
+                    <div class="stats-item"><strong>Services:</strong> <span id="serviceCount">0</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading">Loading...</div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // Global state
+        let map;
+        let hexLayer = null;
+        let serviceLayers = {};
+        let vehicleMarkers = {};
+        let unitMarkers = {};
+        let stopMarkers = {};
+        let routeLayers = []; // Store route visualization layers
+        let currentCity = null;
+        let visualizationData = null;
+        let simulationData = null;
+        let isPlaying = false;
+        let playbackInterval = null;
+        let currentSimTime = null;
+        let animationSpeed = 1;
+        
+        // Create vehicle icon with arrow
+        function createVehicleIcon(color, direction, isStopped) {
+            const size = isStopped ? 16 : 18;
+            const arrowSize = 6;
+            // Direction is in degrees (0 = east, 90 = north, -90 = south, 180 = west)
+            // SVG rotation is clockwise, so we need to adjust
+            const rotation = direction;
+            
+            // Create arrow SVG with proper rotation
+            const arrowSvg = `
+                <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="rotate(${rotation} ${size/2} ${size/2})">
+                        <circle cx="${size/2}" cy="${size/2}" r="${size/2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
+                        <polygon points="${size/2},${size/2 - arrowSize/2} ${size/2 - arrowSize/3},${size/2 + arrowSize/3} ${size/2 + arrowSize/3},${size/2 + arrowSize/3}" 
+                                 fill="white" opacity="0.9"/>
+                    </g>
+                </svg>
+            `;
+            
+            return L.divIcon({
+                className: 'vehicle-marker',
+                html: arrowSvg,
+                iconSize: [size, size],
+                iconAnchor: [size/2, size/2]
+            });
+        }
+        
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([46.52, 6.63], 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+        }
+        
+        // Load cities
+        async function loadCities() {
+            try {
+                const response = await fetch('/api/cities');
+                const cities = await response.json();
+                const select = document.getElementById('citySelect');
+                select.innerHTML = cities.map(city => 
+                    `<option value="${city}">${city}</option>`
+                ).join('');
+            } catch (error) {
+                console.error('Error loading cities:', error);
+            }
+        }
+        
+        // Load visualization data
+        async function loadVisualizationData(cityName) {
+            try {
+                showLoading(true);
+                const response = await fetch(`/api/visualization/data?city_name=${cityName}`);
+                if (!response.ok) throw new Error('Failed to load visualization data');
+                visualizationData = await response.json();
+                
+                // Visualize hexes
+                visualizeHexes(cityName);
+                
+                // Visualize services
+                visualizeServices();
+                
+                showLoading(false);
+            } catch (error) {
+                console.error('Error loading visualization data:', error);
+                showLoading(false);
+            }
+        }
+        
+        // Visualize hexes
+        async function visualizeHexes(cityName) {
+            try {
+                const response = await fetch(`/api/city/${cityName}`);
+                const geojsonData = await response.json();
+                
+                if (hexLayer) {
+                    map.removeLayer(hexLayer);
+                }
+                
+                hexLayer = L.geoJSON(geojsonData, {
+                    style: {
+                        fillColor: '#e0e0e0',
+                        weight: 1,
+                        opacity: 1,
+                        color: '#999',
+                        fillOpacity: 0.3
+                    },
+                    onEachFeature: function(feature, layer) {
+                        layer.bindPopup(`Hex ID: ${feature.properties.hex_id}`);
+                    }
+                }).addTo(map);
+                
+                map.fitBounds(hexLayer.getBounds());
+            } catch (error) {
+                console.error('Error visualizing hexes:', error);
+            }
+        }
+        
+        // Visualize services
+        function visualizeServices() {
+            // Remove existing service layers
+            Object.values(serviceLayers).forEach(layer => map.removeLayer(layer));
+            Object.values(stopMarkers).forEach(marker => map.removeLayer(marker));
+            serviceLayers = {};
+            stopMarkers = {};
+            
+            if (!visualizationData || !visualizationData.services) return;
+            
+            visualizationData.services.forEach((service, index) => {
+                // Create polyline for service route
+                if (service.stops.length > 1) {
+                    const polyline = L.polyline(service.stops, {
+                        color: service.color,
+                        weight: 4,
+                        opacity: 0.7
+                    }).addTo(map);
+                    
+                    // Add label
+                    const midPoint = service.stops[Math.floor(service.stops.length / 2)];
+                    L.marker(midPoint, {
+                        icon: L.divIcon({
+                            className: 'service-label',
+                            html: `<div style="background: ${service.color}; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 11px;">${service.name}</div>`,
+                            iconSize: [60, 20],
+                            iconAnchor: [30, 10]
+                        })
+                    }).addTo(map);
+                    
+                    serviceLayers[service.id] = polyline;
+                }
+                
+                // Add stop markers with enumeration
+                service.stops.forEach((stopCoords, stopIdx) => {
+                    const stopMarker = L.marker(stopCoords, {
+                        icon: L.divIcon({
+                            className: 'stop-marker',
+                            html: `
+                                <div style="
+                                    background: ${service.color};
+                                    width: 20px;
+                                    height: 20px;
+                                    border-radius: 50%;
+                                    border: 3px solid white;
+                                    box-shadow: 0 0 8px rgba(0,0,0,0.8);
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-weight: bold;
+                                    font-size: 11px;
+                                    color: white;
+                                    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                                ">${stopIdx + 1}</div>
+                            `,
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                        })
+                    }).addTo(map);
+                    
+                    stopMarker.bindPopup(`Stop ${stopIdx + 1}<br>Service: ${service.name}<br>Hex: ${service.stop_hex_ids[stopIdx]}`);
+                    stopMarkers[`${service.id}-${stopIdx}`] = stopMarker;
+                });
+            });
+            
+            updateStats();
+        }
+        
+        // Visualize vehicles with smooth animation
+        function visualizeVehicles(currentTime) {
+            if (!visualizationData || !visualizationData.services || !currentTime) return;
+            
+            const time = new Date(currentTime);
+            
+            visualizationData.services.forEach(service => {
+                service.vehicles.forEach((vehicle, vehicleIdx) => {
+                    const position = getVehiclePosition(vehicle, time, service);
+                    if (position) {
+                        const markerKey = `${service.id}-${vehicleIdx}`;
+                        const existingMarker = vehicleMarkers[markerKey];
+                        
+                        // Create arrow icon with direction
+                        const arrowIcon = createVehicleIcon(service.color, position.direction || 0, position.isStopped);
+                        
+                        if (existingMarker) {
+                            // Update position and icon
+                            existingMarker.setLatLng(position.coords);
+                            existingMarker.setIcon(arrowIcon);
+                        } else {
+                            // Create new marker
+                            const vehicleMarker = L.marker(position.coords, {
+                                icon: arrowIcon
+                            }).addTo(map);
+                            
+                            const state = position.isStopped ? 'Stopped' : 'Moving';
+                            vehicleMarker.bindPopup(`
+                                <strong>Vehicle ${vehicleIdx + 1}</strong><br>
+                                Service: ${service.name}<br>
+                                State: ${state}<br>
+                                Capacity: ${vehicle.capacity}<br>
+                                Load: ${vehicle.current_load.toFixed(1)}
+                            `);
+                            
+                            vehicleMarker.on('click', () => showVehicleStats(service.id, vehicleIdx, vehicle));
+                            
+                            vehicleMarkers[markerKey] = vehicleMarker;
+                        }
+                    } else {
+                        // Remove marker if vehicle is not in service
+                        const markerKey = `${service.id}-${vehicleIdx}`;
+                        if (vehicleMarkers[markerKey]) {
+                            map.removeLayer(vehicleMarkers[markerKey]);
+                            delete vehicleMarkers[markerKey];
+                        }
+                    }
+                });
+            });
+            
+            // Remove markers for vehicles that are no longer active
+            Object.keys(vehicleMarkers).forEach(key => {
+                const [serviceId, vehicleIdx] = key.split('-').map(Number);
+                const service = visualizationData.services[serviceId];
+                if (!service || !service.vehicles[vehicleIdx]) {
+                    map.removeLayer(vehicleMarkers[key]);
+                    delete vehicleMarkers[key];
+                }
+            });
+        }
+        
+        // Get vehicle position at a given time using linear interpolation
+        function getVehiclePosition(vehicle, currentTime, service) {
+            if (!vehicle.timetable || vehicle.timetable.length < 2) return null;
+            
+            const time = currentTime.getTime ? currentTime.getTime() : new Date(currentTime).getTime();
+            
+            // First, check if vehicle is stopped at any stop
+            for (let i = 0; i < vehicle.timetable.length; i++) {
+                const stop = vehicle.timetable[i];
+                const arrTime = new Date(stop.arrival_time).getTime();
+                const depTime = new Date(stop.departure_time).getTime();
+                
+                if (time >= arrTime && time <= depTime) {
+                    // Calculate direction for arrow (next stop direction)
+                    let direction = 0;
+                    if (i < vehicle.timetable.length - 1) {
+                        const nextStop = vehicle.timetable[i + 1];
+                        // dx: longitude difference, dy: latitude difference
+                        const dx = nextStop.coords[1] - stop.coords[1]; // longitude (x)
+                        const dy = nextStop.coords[0] - stop.coords[0]; // latitude (y)
+                        direction = Math.atan2(dy, dx) * 180 / Math.PI;
+                    } else if (i > 0) {
+                        // At last stop, use direction from previous stop
+                        const prevStop = vehicle.timetable[i - 1];
+                        const dx = stop.coords[1] - prevStop.coords[1];
+                        const dy = stop.coords[0] - prevStop.coords[0];
+                        direction = Math.atan2(dy, dx) * 180 / Math.PI;
+                    }
+                    
+                    return {
+                        coords: stop.coords,
+                        isStopped: true,
+                        direction: direction
+                    };
+                }
+            }
+            
+            // Check if vehicle is moving between stops
+            for (let i = 0; i < vehicle.timetable.length - 1; i++) {
+                const stop1 = vehicle.timetable[i];
+                const stop2 = vehicle.timetable[i + 1];
+                
+                const depTime = new Date(stop1.departure_time).getTime();
+                const arrTime = new Date(stop2.arrival_time).getTime();
+                
+                if (time >= depTime && time <= arrTime) {
+                    // Vehicle is moving between stops
+                    const totalTime = arrTime - depTime;
+                    const elapsed = time - depTime;
+                    const progress = Math.max(0, Math.min(1, elapsed / totalTime)); // Clamp between 0 and 1
+                    
+                    const coords1 = stop1.coords;
+                    const coords2 = stop2.coords;
+                    
+                    const lat = coords1[0] + (coords2[0] - coords1[0]) * progress;
+                    const lng = coords1[1] + (coords2[1] - coords1[1]) * progress;
+                    
+                    // Calculate direction for arrow
+                    // dx: longitude difference (east-west)
+                    // dy: latitude difference (north-south)
+                    // Math.atan2(dy, dx) gives angle in radians, convert to degrees
+                    // 0° = east, 90° = north, -90° = south, 180° = west
+                    const dx = coords2[1] - coords1[1]; // longitude (x)
+                    const dy = coords2[0] - coords1[0]; // latitude (y)
+                    const direction = Math.atan2(dy, dx) * 180 / Math.PI;
+                    
+                    return {
+                        coords: [lat, lng],
+                        isStopped: false,
+                        direction: direction
+                    };
+                }
+            }
+            
+            // Vehicle is not in service at this time
+            return null;
+        }
+        
+        // Visualize units (passengers)
+        async function visualizeUnits(currentTime) {
+            if (!currentCity || !currentTime) {
+                console.log('Skipping visualizeUnits: missing city or time');
+                return;
+            }
+            
+            if (!simulationData) {
+                console.log('Skipping visualizeUnits: simulation not run yet');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/visualization/simulation-state?city_name=${currentCity}&current_time=${currentTime}`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+                    const errorMsg = errorData.detail || errorData.message || 'Failed to get simulation state';
+                    console.warn('Failed to get simulation state:', errorMsg);
+                    
+                    // Show error in stats window if it's about missing simulation
+                    if (errorMsg.includes('No simulation results') || errorMsg.includes('not initialized')) {
+                        document.getElementById('simStatus').textContent = 'Error: ' + errorMsg;
+                    }
+                    return;
+                }
+                
+                const state = await response.json();
+                
+                console.log(`DEBUG: Got simulation state with ${state.units ? state.units.length : 0} units`);
+                if (state.units && state.units.length > 0) {
+                    console.log('DEBUG: Sample unit:', state.units[0]);
+                }
+                
+                // Remove existing unit markers
+                Object.values(unitMarkers).forEach(marker => map.removeLayer(marker));
+                unitMarkers = {};
+                
+                // Add/update unit markers with smooth animation
+                if (!state.units || state.units.length === 0) {
+                    console.log('DEBUG: No units to display');
+                    return;
+                }
+                
+                console.log(`DEBUG: Processing ${state.units.length} units`);
+                let unitsAdded = 0;
+                
+                // Helper function to calculate a deterministic offset around a position
+                // Uses unit ID to generate a consistent offset in a circular pattern
+                function getOffsetPosition(baseLocation, unitId, actionType) {
+                    // Only apply offset for Wait and Ride actions
+                    if (actionType !== 'Wait' && actionType !== 'Ride') {
+                        return baseLocation;
+                    }
+                    
+                    // Use unit ID to generate a deterministic angle and radius
+                    // This ensures the same unit always gets the same offset
+                    const angle = (unitId * 137.508) % 360; // Golden angle for even distribution
+                    const radius = 0.00015; // Small offset in degrees (~15 meters)
+                    
+                    // Convert angle to radians
+                    const angleRad = (angle * Math.PI) / 180;
+                    
+                    // Calculate offset (latitude and longitude)
+                    // Note: longitude offset needs to be adjusted by cos(latitude) for accurate distance
+                    const latOffset = radius * Math.sin(angleRad);
+                    const lngOffset = radius * Math.cos(angleRad) / Math.cos(baseLocation[0] * Math.PI / 180);
+                    
+                    return [baseLocation[0] + latOffset, baseLocation[1] + lngOffset];
+                }
+                
+                state.units.forEach((unit, idx) => {
+                    if (!unit.location || !Array.isArray(unit.location) || unit.location.length !== 2) {
+                        console.log(`DEBUG: Skipping unit ${unit.id} - invalid location:`, unit.location);
+                        return; // Skip units without valid location
+                    }
+                    
+                    unitsAdded++;
+                    
+                    const markerKey = `unit-${unit.id}`;
+                    const existingMarker = unitMarkers[markerKey];
+                    
+                    // Determine color based on action type
+                    let color = '#FF6B6B'; // Default red
+                    if (unit.action_type === 'Wait') color = '#FFD93D'; // Yellow
+                    else if (unit.action_type === 'Walk') color = '#6BCF7F'; // Green
+                    else if (unit.action_type === 'Ride') color = '#4D96FF'; // Blue
+                    
+                    // Apply offset for Wait and Ride actions to avoid overlapping with stops/vehicles
+                    const displayLocation = getOffsetPosition(unit.location, unit.id, unit.action_type);
+                    
+                    if (existingMarker) {
+                        // Update position and style
+                        existingMarker.setLatLng(displayLocation);
+                        existingMarker.setStyle({
+                            fillColor: color
+                        });
+                    } else {
+                        // Create new marker with distinct styling
+                        const unitMarker = L.circleMarker(displayLocation, {
+                            radius: 5,
+                            fillColor: color,
+                            color: '#fff',
+                            weight: 2,
+                            fillOpacity: 0.9,
+                            className: 'unit-marker'
+                        }).addTo(map);
+                        
+                        unitMarker.bindPopup(`
+                            <strong>Unit ${unit.id + 1}</strong><br>
+                            Size: ${unit.unit}<br>
+                            Action: ${unit.action_type}<br>
+                            Created: ${unit.creation_time ? new Date(unit.creation_time).toLocaleTimeString() : 'N/A'}
+                        `);
+                        
+                        unitMarker.on('click', () => showUnitStats(unit));
+                        
+                        unitMarkers[markerKey] = unitMarker;
+                    }
+                });
+                
+                // Remove markers for units that are no longer active
+                const activeUnitIds = new Set(state.units.filter(u => u.location && Array.isArray(u.location) && u.location.length === 2).map(u => `unit-${u.id}`));
+                Object.keys(unitMarkers).forEach(key => {
+                    if (!activeUnitIds.has(key)) {
+                        map.removeLayer(unitMarkers[key]);
+                        delete unitMarkers[key];
+                    }
+                });
+                
+                console.log(`DEBUG: Added ${unitsAdded} unit markers to map`);
+                
+                // Update unit count in stats
+                document.getElementById('unitCount').textContent = unitsAdded;
+            } catch (error) {
+                console.error('Error visualizing units:', error);
+            }
+        }
+        
+        // Show unit stats
+        // Clear route visualization
+        function clearRouteVisualization() {
+            routeLayers.forEach(layer => {
+                map.removeLayer(layer);
+            });
+            routeLayers = [];
+        }
+        
+        // Visualize route on map
+        function visualizeRoute(routeData) {
+            clearRouteVisualization();
+            
+            if (!routeData || !routeData.steps) return;
+            
+            routeData.steps.forEach((step, idx) => {
+                let color = '#FF6B6B'; // Default red
+                let opacity = 0.6;
+                let weight = 3;
+                
+                if (step.type === 'Wait') {
+                    color = '#FFD93D'; // Yellow
+                    // Draw a circle at the wait location
+                    if (step.coords) {
+                        const circle = L.circleMarker(step.coords, {
+                            radius: 8,
+                            fillColor: color,
+                            color: '#fff',
+                            weight: 2,
+                            fillOpacity: 0.8,
+                        }).addTo(map);
+                        routeLayers.push(circle);
+                    }
+                } else if (step.type === 'Walk') {
+                    color = '#6BCF7F'; // Green
+                    // Draw a line from start to end
+                    if (step.start_coords && step.end_coords) {
+                        const polyline = L.polyline([step.start_coords, step.end_coords], {
+                            color: color,
+                            weight: weight,
+                            opacity: opacity,
+                            dashArray: '5, 5', // Dashed line for walking
+                        }).addTo(map);
+                        routeLayers.push(polyline);
+                    }
+                } else if (step.type === 'Ride') {
+                    color = '#4D96FF'; // Blue
+                    // Draw the vehicle route using vehicle stops
+                    if (step.vehicle_stops && step.vehicle_stops.length > 1) {
+                        const coords = step.vehicle_stops.map(stop => stop.coords);
+                        const polyline = L.polyline(coords, {
+                            color: color,
+                            weight: weight,
+                            opacity: opacity,
+                        }).addTo(map);
+                        routeLayers.push(polyline);
+                    } else if (step.start_coords && step.end_coords) {
+                        // Fallback: draw line from start to end
+                        const polyline = L.polyline([step.start_coords, step.end_coords], {
+                            color: color,
+                            weight: weight,
+                            opacity: opacity,
+                        }).addTo(map);
+                        routeLayers.push(polyline);
+                    }
+                }
+            });
+            
+            // Fit map to show entire route
+            const allCoords = [];
+            routeData.steps.forEach(step => {
+                if (step.coords) allCoords.push(step.coords);
+                if (step.start_coords) allCoords.push(step.start_coords);
+                if (step.end_coords) allCoords.push(step.end_coords);
+                if (step.vehicle_stops) {
+                    step.vehicle_stops.forEach(stop => {
+                        if (stop.coords) allCoords.push(stop.coords);
+                    });
+                }
+            });
+            
+            if (allCoords.length > 0) {
+                const bounds = L.latLngBounds(allCoords);
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+        
+        async function showUnitStats(unit) {
+            const statsWindow = document.getElementById('statsWindow');
+            statsWindow.innerHTML = `
+                <h3>Unit ${unit.id + 1} Details</h3>
+                <div class="stats-item"><strong>Loading route...</strong></div>
+            `;
+            
+            // Fetch full route details
+            try {
+                const response = await fetch(`/api/visualization/unit-route?city_name=${currentCity}&unit_id=${unit.id}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch route: ${response.statusText}`);
+                }
+                
+                const routeData = await response.json();
+                
+                // Visualize route on map
+                visualizeRoute(routeData);
+                
+                // Build route steps HTML
+                let stepsHtml = '<div style="margin-top: 15px;"><strong>Route Steps:</strong><ol style="margin-top: 10px; padding-left: 20px;">';
+                routeData.steps.forEach((step, idx) => {
+                    const startTime = step.start_time ? new Date(step.start_time).toLocaleTimeString() : 'N/A';
+                    const endTime = step.end_time ? new Date(step.end_time).toLocaleTimeString() : 'N/A';
+                    const duration = step.duration_minutes ? `${step.duration_minutes.toFixed(1)} min` : 'N/A';
+                    
+                    let stepDetails = '';
+                    if (step.type === 'Wait') {
+                        stepDetails = `Wait at hex ${step.hex_id || 'N/A'}`;
+                    } else if (step.type === 'Walk') {
+                        stepDetails = `Walk from hex ${step.start_hex_id || 'N/A'} to hex ${step.end_hex_id || 'N/A'}`;
+                    } else if (step.type === 'Ride') {
+                        stepDetails = `Ride on ${step.service_name || 'Service'} from hex ${step.start_hex_id || 'N/A'} to hex ${step.end_hex_id || 'N/A'}`;
+                    }
+                    
+                    stepsHtml += `
+                        <li style="margin-bottom: 10px; padding: 8px; background: #f5f5f5; border-radius: 4px;">
+                            <strong>${step.type}</strong><br>
+                            ${stepDetails}<br>
+                            <small>Time: ${startTime} → ${endTime} (${duration})</small>
+                        </li>
+                    `;
+                });
+                stepsHtml += '</ol></div>';
+                
+                statsWindow.innerHTML = `
+                    <h3>Unit ${unit.id + 1} Details</h3>
+                    <div class="stats-item"><strong>Unit Size:</strong> ${routeData.unit_size}</div>
+                    <div class="stats-item"><strong>Creation Time:</strong> ${routeData.creation_time ? new Date(routeData.creation_time).toLocaleString() : 'N/A'}</div>
+                    <div class="stats-item"><strong>Current Action:</strong> ${unit.action_type}</div>
+                    <div class="stats-item"><strong>Total Time:</strong> ${routeData.total_time_minutes ? routeData.total_time_minutes.toFixed(1) + ' min' : 'N/A'}</div>
+                    <div class="stats-item"><strong>Total Fare:</strong> ${routeData.total_fare ? routeData.total_fare.toFixed(2) + ' CHF' : 'N/A'}</div>
+                    ${stepsHtml}
+                    <button class="btn back-btn" onclick="showGeneralStats()">← Back to General Stats</button>
+                `;
+            } catch (error) {
+                console.error('Error fetching route:', error);
+                statsWindow.innerHTML = `
+                    <h3>Unit ${unit.id + 1} Details</h3>
+                    <div class="stats-item"><strong>Unit Size:</strong> ${unit.unit}</div>
+                    <div class="stats-item"><strong>Creation Time:</strong> ${unit.creation_time ? new Date(unit.creation_time).toLocaleString() : 'N/A'}</div>
+                    <div class="stats-item"><strong>Current Action:</strong> ${unit.action_type}</div>
+                    <div class="stats-item" style="color: red;"><strong>Error loading route:</strong> ${error.message}</div>
+                    <button class="btn back-btn" onclick="showGeneralStats()">← Back to General Stats</button>
+                `;
+            }
+        }
+        
+        // Show vehicle stats
+        function showVehicleStats(serviceId, vehicleIdx, vehicle) {
+            const statsWindow = document.getElementById('statsWindow');
+            const service = visualizationData.services[serviceId];
+            
+            let timetableHtml = '<table style="width: 100%; font-size: 11px; margin-top: 10px;"><tr><th>Stop</th><th>Arrival</th><th>Departure</th></tr>';
+            vehicle.timetable.forEach((stop, idx) => {
+                const arrival = new Date(stop.arrival_time).toLocaleTimeString();
+                const departure = new Date(stop.departure_time).toLocaleTimeString();
+                timetableHtml += `<tr><td>${idx + 1}</td><td>${arrival}</td><td>${departure}</td></tr>`;
+            });
+            timetableHtml += '</table>';
+            
+            statsWindow.innerHTML = `
+                <h3>Vehicle ${vehicleIdx + 1}</h3>
+                <div class="stats-item"><strong>Service:</strong> ${service.service_name}</div>
+                <div class="stats-item"><strong>Capacity:</strong> ${vehicle.capacity}</div>
+                <div class="stats-item"><strong>Current Load:</strong> ${vehicle.current_load.toFixed(1)}</div>
+                <div class="stats-item"><strong>Load %:</strong> ${((vehicle.current_load / vehicle.capacity) * 100).toFixed(1)}%</div>
+                <div style="margin-top: 10px;"><strong>Timetable:</strong>${timetableHtml}</div>
+                <button class="btn back-btn" onclick="showGeneralStats()">← Back to General Stats</button>
+            `;
+        }
+        
+        // Show general stats
+        function showGeneralStats() {
+            clearRouteVisualization(); // Clear route visualization when going back
+            const statsWindow = document.getElementById('statsWindow');
+            statsWindow.innerHTML = `
+                <h3>Simulation Stats</h3>
+                <div class="stats-item"><strong>Current Time:</strong> <span id="currentTime">--:--:--</span></div>
+                <div class="stats-item"><strong>Status:</strong> <span id="simStatus">Not initialized</span></div>
+                <div class="stats-item"><strong>Units:</strong> <span id="unitCount">0</span></div>
+                <div class="stats-item"><strong>Vehicles:</strong> <span id="vehicleCount">0</span></div>
+                <div class="stats-item"><strong>Services:</strong> <span id="serviceCount">0</span></div>
+            `;
+            updateStats();
+            updateTimeDisplay(); // Update time display when showing stats
+        }
+        
+        
+        // Update stats
+        function updateStats() {
+            if (visualizationData) {
+                document.getElementById('serviceCount').textContent = visualizationData.services.length;
+                const totalVehicles = visualizationData.services.reduce((sum, s) => sum + s.vehicles.length, 0);
+                document.getElementById('vehicleCount').textContent = totalVehicles;
+            }
+        }
+        
+        // Initialize simulation
+        async function initializeSimulation() {
+            const city = document.getElementById('citySelect').value;
+            if (!city) {
+                alert('Please select a city');
+                return;
+            }
+            
+            try {
+                showLoading(true);
+                const response = await fetch(`/api/simulation/init/${city}`, { method: 'POST' });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    currentCity = city;
+                    await loadVisualizationData(city);
+                    document.getElementById('runBtn').disabled = false;
+                    document.getElementById('simStatus').textContent = 'Initialized';
+                } else {
+                    alert(`Failed to initialize: ${result.detail || result.error}`);
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Run simulation
+        async function runSimulation() {
+            if (!currentCity) {
+                alert('Please initialize simulation first');
+                return;
+            }
+            
+            const hour = parseInt(document.getElementById('hourSelect').value);
+            
+            try {
+                showLoading(true);
+                const response = await fetch('/api/simulation/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hour })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    simulationData = result;
+                    document.getElementById('simStatus').textContent = 'Completed';
+                    document.getElementById('unitCount').textContent = result.routes_generated || 0;
+                    
+                    // Update hour selector to match simulation hour if available
+                    if (result.simulation_hour !== undefined) {
+                        document.getElementById('hourSelect').value = result.simulation_hour;
+                        updateTimeDisplay();
+                    }
+                    
+                    // Enable playback controls
+                    document.getElementById('playBtn').disabled = false;
+                    document.getElementById('resetBtn').disabled = false;
+                    
+                    // Initialize playback
+                    initializePlayback(result);
+                    
+                    // Initial visualization - use simulation hour from result
+                    const simHour = result.simulation_hour !== undefined ? result.simulation_hour : parseInt(document.getElementById('hourSelect').value);
+                    const startTime = new Date(`2024-01-01T${simHour.toString().padStart(2, '0')}:00:00`);
+                    currentSimTime = startTime; // Set current time for playback first
+                    visualizeVehicles(startTime.toISOString());
+                    visualizeUnits(startTime.toISOString());
+                } else {
+                    alert(`Simulation failed: ${result.detail || result.message}`);
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Initialize playback
+        function initializePlayback(simResult) {
+            // Use the simulation hour from the result, or fall back to the hour selector
+            const simHour = simResult.simulation_hour !== undefined ? simResult.simulation_hour : parseInt(document.getElementById('hourSelect').value);
+            
+            // Set start time to the simulation hour
+            currentSimTime = new Date(`2024-01-01T${simHour.toString().padStart(2, '0')}:00:00`);
+            
+            console.log(`DEBUG: Initialized playback at hour ${simHour}, time: ${currentSimTime.toISOString()}`);
+            updateTimeDisplay();
+        }
+        
+        // Playback functions
+        function play() {
+            if (isPlaying) return;
+            isPlaying = true;
+            document.getElementById('playBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            
+            const speed = parseFloat(document.getElementById('speedSlider').value);
+            // Update interval: at higher speeds, update more frequently for smoothness
+            // Base interval of 200ms, scaled by speed (faster = more frequent updates)
+            const intervalMs = Math.max(50, 200 / Math.sqrt(speed)); // Minimum 50ms, scales with speed
+            
+            playbackInterval = setInterval(() => {
+                if (!currentSimTime) return;
+                
+                // Advance time based on speed (faster speed = larger time steps)
+                const speed = parseFloat(document.getElementById('speedSlider').value);
+                // At 1x speed: 10 seconds per update, at 5x: 50 seconds, at 30x: 300 seconds (5 minutes)
+                const timeStepMs = 10000 * speed;
+                currentSimTime = new Date(currentSimTime.getTime() + timeStepMs);
+                
+                // Update visualization
+                visualizeVehicles(currentSimTime.toISOString());
+                if (simulationData) {
+                    visualizeUnits(currentSimTime.toISOString());
+                }
+                updateTimeDisplay();
+                
+                // Check if we should stop (1 hour after simulation start)
+                if (simulationData && simulationData.simulation_hour !== undefined) {
+                    const simHour = simulationData.simulation_hour;
+                    const endTime = new Date(`2024-01-01T${(simHour + 1).toString().padStart(2, '0')}:00:00`);
+                    if (currentSimTime >= endTime) {
+                        //pause();
+                    }
+                } else {
+                    const hour = parseInt(document.getElementById('hourSelect').value);
+                    const endTime = new Date(`2024-01-01T${(hour + 1).toString().padStart(2, '0')}:00:00`);
+                    if (currentSimTime >= endTime) {
+                        pause();
+                    }
+                }
+            }, intervalMs);
+        }
+        
+        function pause() {
+            isPlaying = false;
+            if (playbackInterval) {
+                clearInterval(playbackInterval);
+                playbackInterval = null;
+            }
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+        }
+        
+        function reset() {
+            clearRouteVisualization(); // Clear route visualization on reset
+            pause();
+            if (!simulationData) return; // Don't reset if simulation hasn't been run
+            // Use simulation hour from result, not the hour selector
+            const simHour = simulationData.simulation_hour !== undefined ? simulationData.simulation_hour : parseInt(document.getElementById('hourSelect').value);
+            currentSimTime = new Date(`2024-01-01T${simHour.toString().padStart(2, '0')}:00:00`);
+            updateTimeDisplay();
+            visualizeVehicles(currentSimTime.toISOString());
+            if (simulationData) {
+                visualizeUnits(currentSimTime.toISOString());
+            }
+        }
+        
+        // Update time display
+        function updateTimeDisplay() {
+            const hour = parseInt(document.getElementById('hourSelect').value);
+            document.getElementById('timeDisplay').textContent = `${hour.toString().padStart(2, '0')}:00`;
+            
+            if (currentSimTime) {
+                const hours = currentSimTime.getHours().toString().padStart(2, '0');
+                const minutes = currentSimTime.getMinutes().toString().padStart(2, '0');
+                const seconds = currentSimTime.getSeconds().toString().padStart(2, '0');
+                document.getElementById('currentTime').textContent = `${hours}:${minutes}:${seconds}`;
+            } else {
+                document.getElementById('currentTime').textContent = '--:--:--';
+            }
+        }
+        
+        // Show/hide loading
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+        
+        // Event listeners
+        document.getElementById('citySelect').addEventListener('change', (e) => {
+            if (e.target.value) {
+                loadVisualizationData(e.target.value);
+            }
+        });
+        
+        document.getElementById('hourSelect').addEventListener('input', updateTimeDisplay);
+        
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            document.getElementById('speedDisplay').textContent = `${e.target.value}x`;
+        });
+        
+        document.getElementById('initBtn').addEventListener('click', initializeSimulation);
+        document.getElementById('runBtn').addEventListener('click', runSimulation);
+        document.getElementById('playBtn').addEventListener('click', play);
+        document.getElementById('pauseBtn').addEventListener('click', pause);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        
+        // Initialize
+        initMap();
+        loadCities();
+        updateTimeDisplay();
+    </script>
+</body>
+</html>
