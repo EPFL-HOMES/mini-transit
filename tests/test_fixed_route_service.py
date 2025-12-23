@@ -107,7 +107,7 @@ def test_get_next_departure_forward_direction():
     current_time = datetime(2025, 1, 1, 8, 2)
 
     # Access the mangled private method
-    vehicle = service._FixedRouteService__get_next_departure(
+    vehicle = service.get_next_departure(
         current_time=current_time,
         start_index=start_index,
         end_index=end_index,
