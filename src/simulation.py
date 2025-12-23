@@ -168,7 +168,7 @@ class Simulation:
         self.completed_routes = []
 
         while self.event_queue:
-            #print(f"Simulation time: {self.network.time}")
+            # print(f"Simulation time: {self.network.time}")
             # Pop the event with the earliest end_time (Ride actions prioritized when times are equal)
             current_event = heapq.heappop(self.event_queue)
 

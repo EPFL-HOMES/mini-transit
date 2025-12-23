@@ -510,9 +510,13 @@ class APIServer:
                 "routes": routes,
                 "simulation_hour": simulation_hour,
             }
-            print(f"DEBUG: last_simulation_result stored: {self.last_simulation_result is not None}")
-            print(f"DEBUG: last_simulation_result has routes: {len(self.last_simulation_result['routes']) if self.last_simulation_result else 0}")
-            
+            print(
+                f"DEBUG: last_simulation_result stored: {self.last_simulation_result is not None}"
+            )
+            print(
+                f"DEBUG: last_simulation_result has routes: {len(self.last_simulation_result['routes']) if self.last_simulation_result else 0}"
+            )
+
             # Save simulation results to file (this can fail without affecting visualization)
             try:
                 self._save_simulation_results(result, simulation_hour)
@@ -526,6 +530,7 @@ class APIServer:
             # Make sure to clear last_simulation_result on error
             self.last_simulation_result = None
             import traceback
+
             traceback.print_exc()
             return {"status": "error", "message": f"Simulation failed: {str(e)}", "routes": []}
 
