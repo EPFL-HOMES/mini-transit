@@ -2,5 +2,12 @@
     "walk_speed": 10.0,
     "unit_sizes": [5],
     "seed": null,
-    "sampling": false
+    "sampling": true,
+    "on_demand_speed": 35.0,
+    "utility_function_alpha": 0.5,
+    "utility_function_phi": 1.0,
+    "fixedroute_base_fare": 2.4,
+    "ondemand_base_fare": 3.0,
+    "ondemand_time_rate_per_minute": 0.1,
+    "ondemand_base_time_cutoff_minutes": 30
 }
