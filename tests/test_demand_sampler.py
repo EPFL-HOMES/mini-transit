@@ -84,8 +84,8 @@ def test_times_are_within_the_correct_hour_for_numeric_hour(hexes):
 
     for d in demands:
         # time must be within [hour, hour+1)
-        assert d.time >= hour
-        assert d.time < hour + 1
+        assert d.time.hour >= hour
+        assert d.time.hour < hour + 1
 
 
 def test_multiple_inputs_keep_correct_ods(hexes):
