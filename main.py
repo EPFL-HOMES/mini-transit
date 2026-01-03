@@ -329,8 +329,8 @@ def get_simulation_state(
     try:
         from datetime import datetime
 
-        # Handle ISO format with or without timezone
-        # Remove 'Z' and milliseconds if present, then parse
+        # Handle ISO format - UI now sends local time without timezone conversion
+        # Format: "2024-01-01T09:00:00" (no Z, no timezone)
         time_str = current_time.replace("Z", "").strip()
         # Remove milliseconds if present (e.g., .000)
         if "." in time_str and "T" in time_str:
@@ -342,7 +342,7 @@ def get_simulation_state(
                 time_str = f"{date_part}T{time_part}"
 
         try:
-            # Try parsing as ISO format
+            # Parse as ISO format (no timezone)
             current_dt = datetime.fromisoformat(time_str)
         except (ValueError, AttributeError) as e:
             # Fallback: try parsing with common format
@@ -373,11 +373,7 @@ def get_simulation_state(
         units_data = []
         routes = api_server.last_simulation_result["routes"]
 
-        # Normalize current_dt once at the start
-        if current_dt.tzinfo is not None:
-            current_dt = current_dt.replace(tzinfo=None)
-
-        current_dt = current_dt + timedelta(hours=1)
+        # current_dt is already naive (no timezone)
 
         print(f"DEBUG: Processing {len(routes)} routes for time {current_dt}")
 

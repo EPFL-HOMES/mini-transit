@@ -220,9 +220,9 @@ class Network:
         current_time = demand_time
         num_transfers = len(chain) - 1
 
-        # Step 1: walk from origin to the start service’s nearest stop
+        # Step 1: walk from origin to the start service's nearest stop
         s_first = chain[0]
-        s1_start, s1_walk_time = self.find_closest_stop(graph, start, s_first, walk_speed)
+        s1_start, s1_walk_time = self.find_closest_stop(graph, start.hex_id, s_first, walk_speed)
         if s1_start is None:
             raise Exception("No feasible access stop for first service")
 
@@ -242,7 +242,7 @@ class Network:
             sa = chain[i]
             sb = chain[i + 1]
 
-            link = self.services_can_link(sa, sb, walk_speed)
+            link = self.services_can_link(sa, sb)
             _, _, walk_time_hours = link["transfer_pairs"][
                 0
             ]  # should either be the pair with the best walking time or one that doesn't need walking at all
@@ -282,7 +282,7 @@ class Network:
 
         # Step 3: final ride on last service to closest end stop
         s_last = chain[-1]
-        s2_end, s2_walk_time = self.find_closest_stop(graph, end, s_last, walk_speed)
+        s2_end, s2_walk_time = self.find_closest_stop(graph, end.hex_id, s_last, walk_speed)
         if s2_end is None:
             raise Exception("No feasible end stop for last service")
 
@@ -338,7 +338,7 @@ class Network:
         ondemanddockless_best_cost = -float("inf")
 
         # 1. Try direct walk
-        walk_time, walk_path = self.compute_walk_time(self.graph, start, end, walk_speed)
+        walk_time, walk_path = self.compute_walk_time(self.graph, start.hex_id, end.hex_id, walk_speed)
         if walk_time < float("inf"):
             walk_action = Walk(
                 start_time=demand_time,
@@ -371,10 +371,10 @@ class Network:
             try:
                 # Find closest stops to start and end
                 start_stop, start_walk_time = self.find_closest_stop(
-                    self.graph, start, service, walk_speed
+                    self.graph, start.hex_id, service, walk_speed
                 )
                 end_stop, end_walk_time = self.find_closest_stop(
-                    self.graph, end, service, walk_speed
+                    self.graph, end.hex_id, service, walk_speed
                 )
 
                 if start_stop is None or end_stop is None:
@@ -433,10 +433,10 @@ class Network:
                 try:
                     # Find closest stops
                     start_stop1, start_walk_time = self.find_closest_stop(
-                        self.graph, start, service1, walk_speed
+                        self.graph, start.hex_id, service1, walk_speed
                     )
                     end_stop2, end_walk_time = self.find_closest_stop(
-                        self.graph, end, service2, walk_speed
+                        self.graph, end.hex_id, service2, walk_speed
                     )
 
                     if start_stop1 is None or end_stop2 is None:
@@ -530,12 +530,12 @@ class Network:
             for service in ondemandservices_docked:
                 try:
                     best_start_dock, vehicle_walk_time = self.find_closest_ondemand_dock(
-                        self.graph, start, service, walk_speed, radius=2
+                        self.graph, start.hex_id, service, walk_speed, radius=2
                     )
                     if best_start_dock is None:  # aka literally no docks at all within the radius
                         continue
                     best_end_dock, off_vehicle_walk_time = self.find_closest_ondemand_dock(
-                        self.graph, end, service, walk_speed, radius=2
+                        self.graph, end.hex_id, service, walk_speed, radius=2
                     )
                     # Walk to vehicle
                     walk_to_vehicle = Walk(
@@ -585,7 +585,7 @@ class Network:
 
         for service in ondemandservices_dockless:
             best_vehicle, vehicle_walk_time = self.find_closest_ondemand_vehicle(
-                self.graph, start, service, walk_speed, demand_time, radius=2
+                self.graph, start.hex_id, service, walk_speed, demand_time, radius=2
             )
             if best_vehicle is None:  # aka literally no vehicles at all within the radius
                 continue

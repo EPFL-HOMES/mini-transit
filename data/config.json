@@ -2,7 +2,7 @@
     "walk_speed": 10.0,
     "unit_sizes": [5],
     "seed": null,
-    "sampling": true,
+    "sampling": false,
     "on_demand_speed": 35.0,
     "utility_function_alpha": 0.5,
     "utility_function_phi": 1.0,

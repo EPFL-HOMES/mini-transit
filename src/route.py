@@ -49,7 +49,7 @@ class Route:
         def _read_utility_function_params_from_config():
             # Placeholder for reading from config
             config_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "../../data/config.json"
+                os.path.dirname(os.path.abspath(__file__)), "../data/config.json"
             )
             with open(config_path, "r") as f:
                 config = json.load(f)

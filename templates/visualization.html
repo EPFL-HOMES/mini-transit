@@ -475,6 +475,18 @@
         }
         
         // Visualize vehicles with smooth animation
+        // Helper function to format date as ISO string without timezone conversion
+        // This ensures the hour/minute the user sees matches what's sent to the server
+        function toLocalISOString(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+        }
+        
         function visualizeVehicles(currentTime) {
             if (!visualizationData || !visualizationData.services || !currentTime) return;
             
@@ -1025,8 +1037,8 @@
                     const simHour = result.simulation_hour !== undefined ? result.simulation_hour : parseInt(document.getElementById('hourSelect').value);
                     const startTime = new Date(`2024-01-01T${simHour.toString().padStart(2, '0')}:00:00`);
                     currentSimTime = startTime; // Set current time for playback first
-                    visualizeVehicles(startTime.toISOString());
-                    visualizeUnits(startTime.toISOString());
+                    visualizeVehicles(toLocalISOString(startTime));
+                    visualizeUnits(toLocalISOString(startTime));
                 } else {
                     alert(`Simulation failed: ${result.detail || result.message}`);
                 }
@@ -1045,7 +1057,7 @@
             // Set start time to the simulation hour
             currentSimTime = new Date(`2024-01-01T${simHour.toString().padStart(2, '0')}:00:00`);
             
-            console.log(`DEBUG: Initialized playback at hour ${simHour}, time: ${currentSimTime.toISOString()}`);
+            console.log(`DEBUG: Initialized playback at hour ${simHour}, time: ${toLocalISOString(currentSimTime)}`);
             updateTimeDisplay();
         }
         
@@ -1071,9 +1083,9 @@
                 currentSimTime = new Date(currentSimTime.getTime() + timeStepMs);
                 
                 // Update visualization
-                visualizeVehicles(currentSimTime.toISOString());
+                visualizeVehicles(toLocalISOString(currentSimTime));
                 if (simulationData) {
-                    visualizeUnits(currentSimTime.toISOString());
+                    visualizeUnits(toLocalISOString(currentSimTime));
                 }
                 updateTimeDisplay();
                 
@@ -1112,10 +1124,10 @@
             const simHour = simulationData.simulation_hour !== undefined ? simulationData.simulation_hour : parseInt(document.getElementById('hourSelect').value);
             currentSimTime = new Date(`2024-01-01T${simHour.toString().padStart(2, '0')}:00:00`);
             updateTimeDisplay();
-            visualizeVehicles(currentSimTime.toISOString());
-            if (simulationData) {
-                visualizeUnits(currentSimTime.toISOString());
-            }
+            visualizeVehicles(toLocalISOString(currentSimTime));
+                if (simulationData) {
+                    visualizeUnits(toLocalISOString(currentSimTime));
+                }
         }
         
         // Update time display
