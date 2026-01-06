@@ -228,6 +228,14 @@
         .unit-marker {
             z-index: 800 !important;
         }
+        
+        .docking-station-marker {
+            z-index: 950 !important;
+        }
+        
+        .ondemand-vehicle-marker {
+            z-index: 850 !important;
+        }
     </style>
 </head>
 <body>
@@ -297,6 +305,8 @@
         let vehicleMarkers = {};
         let unitMarkers = {};
         let stopMarkers = {};
+        let dockingStationMarkers = {}; // Store docking station markers
+        let ondemandVehicleMarkers = {}; // Store on-demand vehicle markers
         let routeLayers = []; // Store route visualization layers
         let currentCity = null;
         let visualizationData = null;
@@ -328,6 +338,25 @@
             return L.divIcon({
                 className: 'vehicle-marker',
                 html: arrowSvg,
+                iconSize: [size, size],
+                iconAnchor: [size/2, size/2]
+            });
+        }
+        
+        // Create on-demand vehicle icon (different style from fixed route vehicles)
+        function createOnDemandVehicleIcon(color) {
+            const size = 16;
+            
+            const iconSvg = `
+                <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="${size/2}" cy="${size/2}" r="${size/2 - 2}" fill="${color}" stroke="white" stroke-width="2"/>
+                    <circle cx="${size/2}" cy="${size/2}" r="${size/4}" fill="white" opacity="0.9"/>
+                </svg>
+            `;
+            
+            return L.divIcon({
+                className: 'ondemand-vehicle-marker',
+                html: iconSvg,
                 iconSize: [size, size],
                 iconAnchor: [size/2, size/2]
             });
@@ -411,64 +440,138 @@
             // Remove existing service layers
             Object.values(serviceLayers).forEach(layer => map.removeLayer(layer));
             Object.values(stopMarkers).forEach(marker => map.removeLayer(marker));
+            Object.values(dockingStationMarkers).forEach(marker => map.removeLayer(marker));
+            Object.values(ondemandVehicleMarkers).forEach(marker => map.removeLayer(marker));
             serviceLayers = {};
             stopMarkers = {};
+            dockingStationMarkers = {};
+            ondemandVehicleMarkers = {};
             
             if (!visualizationData || !visualizationData.services) return;
             
             visualizationData.services.forEach((service, index) => {
-                // Create polyline for service route
-                if (service.stops.length > 1) {
-                    const polyline = L.polyline(service.stops, {
-                        color: service.color,
-                        weight: 4,
-                        opacity: 0.7
-                    }).addTo(map);
+                if (service.type === 'fixed_route') {
+                    // Handle fixed route services
+                    // Create polyline for service route
+                    if (service.stops && service.stops.length > 1) {
+                        const polyline = L.polyline(service.stops, {
+                            color: service.color,
+                            weight: 4,
+                            opacity: 0.7
+                        }).addTo(map);
+                        
+                        // Add label
+                        const midPoint = service.stops[Math.floor(service.stops.length / 2)];
+                        L.marker(midPoint, {
+                            icon: L.divIcon({
+                                className: 'service-label',
+                                html: `<div style="background: ${service.color}; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 11px;">${service.name}</div>`,
+                                iconSize: [60, 20],
+                                iconAnchor: [30, 10]
+                            })
+                        }).addTo(map);
+                        
+                        serviceLayers[service.id] = polyline;
+                    }
                     
-                    // Add label
-                    const midPoint = service.stops[Math.floor(service.stops.length / 2)];
-                    L.marker(midPoint, {
-                        icon: L.divIcon({
-                            className: 'service-label',
-                            html: `<div style="background: ${service.color}; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 11px;">${service.name}</div>`,
-                            iconSize: [60, 20],
-                            iconAnchor: [30, 10]
-                        })
-                    }).addTo(map);
+                    // Add stop markers with enumeration
+                    if (service.stops) {
+                        service.stops.forEach((stopCoords, stopIdx) => {
+                            const stopMarker = L.marker(stopCoords, {
+                                icon: L.divIcon({
+                                    className: 'stop-marker',
+                                    html: `
+                                        <div style="
+                                            background: ${service.color};
+                                            width: 20px;
+                                            height: 20px;
+                                            border-radius: 50%;
+                                            border: 3px solid white;
+                                            box-shadow: 0 0 8px rgba(0,0,0,0.8);
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: center;
+                                            font-weight: bold;
+                                            font-size: 11px;
+                                            color: white;
+                                            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                                        ">${stopIdx + 1}</div>
+                                    `,
+                                    iconSize: [20, 20],
+                                    iconAnchor: [10, 10]
+                                })
+                            }).addTo(map);
+                            
+                            stopMarker.bindPopup(`Stop ${stopIdx + 1}<br>Service: ${service.service_name}<br>Hex: ${service.stop_hex_ids[stopIdx]}`);
+                            stopMarkers[`${service.id}-${stopIdx}`] = stopMarker;
+                        });
+                    }
+                } else if (service.type === 'ondemand') {
+                    // Handle on-demand services
+                    // Visualize docking stations if this is a docked service
+                    if (service.docking_stations && service.docking_stations.length > 0) {
+                        service.docking_stations.forEach((dock, dockIdx) => {
+                            if (dock.location) {
+                                const dockMarker = L.marker(dock.location, {
+                                    icon: L.divIcon({
+                                        className: 'docking-station-marker',
+                                        html: `
+                                            <div style="
+                                                background: ${service.color};
+                                                width: 24px;
+                                                height: 24px;
+                                                border-radius: 4px;
+                                                border: 3px solid white;
+                                                box-shadow: 0 0 8px rgba(0,0,0,0.8);
+                                                display: flex;
+                                                align-items: center;
+                                                justify-content: center;
+                                                font-weight: bold;
+                                                font-size: 10px;
+                                                color: white;
+                                                text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                                            ">🚲</div>
+                                        `,
+                                        iconSize: [24, 24],
+                                        iconAnchor: [12, 12]
+                                    })
+                                }).addTo(map);
+                                
+                                dockMarker.bindPopup(`
+                                    <strong>Docking Station</strong><br>
+                                    ID: ${dock.station_id}<br>
+                                    Service: ${service.service_name}<br>
+                                    Capacity: ${dock.capacity}<br>
+                                    Current Vehicles: ${dock.current_vehicles_count || 0}<br>
+                                    Hex: ${dock.location_hex_id}
+                                `);
+                                
+                                dockingStationMarkers[`${service.id}-${dockIdx}`] = dockMarker;
+                            }
+                        });
+                    }
                     
-                    serviceLayers[service.id] = polyline;
+                    // Visualize on-demand vehicles (initial positions)
+                    if (service.vehicles && service.vehicles.length > 0) {
+                        service.vehicles.forEach((vehicle, vehicleIdx) => {
+                            if (vehicle.current_location) {
+                                const vehicleMarker = L.marker(vehicle.current_location, {
+                                    icon: createOnDemandVehicleIcon(service.color)
+                                }).addTo(map);
+                                
+                                vehicleMarker.bindPopup(`
+                                    <strong>On-Demand Vehicle</strong><br>
+                                    ID: ${vehicle.vehicle_id || `V${vehicleIdx + 1}`}<br>
+                                    Service: ${service.service_name}<br>
+                                    Capacity: ${vehicle.capacity}<br>
+                                    Location Hex: ${vehicle.current_location_hex_id || 'N/A'}
+                                `);
+                                
+                                ondemandVehicleMarkers[`${service.id}-${vehicleIdx}`] = vehicleMarker;
+                            }
+                        });
+                    }
                 }
-                
-                // Add stop markers with enumeration
-                service.stops.forEach((stopCoords, stopIdx) => {
-                    const stopMarker = L.marker(stopCoords, {
-                        icon: L.divIcon({
-                            className: 'stop-marker',
-                            html: `
-                                <div style="
-                                    background: ${service.color};
-                                    width: 20px;
-                                    height: 20px;
-                                    border-radius: 50%;
-                                    border: 3px solid white;
-                                    box-shadow: 0 0 8px rgba(0,0,0,0.8);
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    font-weight: bold;
-                                    font-size: 11px;
-                                    color: white;
-                                    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-                                ">${stopIdx + 1}</div>
-                            `,
-                            iconSize: [20, 20],
-                            iconAnchor: [10, 10]
-                        })
-                    }).addTo(map);
-                    
-                    stopMarker.bindPopup(`Stop ${stopIdx + 1}<br>Service: ${service.name}<br>Hex: ${service.stop_hex_ids[stopIdx]}`);
-                    stopMarkers[`${service.id}-${stopIdx}`] = stopMarker;
-                });
             });
             
             updateStats();
@@ -493,54 +596,91 @@
             const time = new Date(currentTime);
             
             visualizationData.services.forEach(service => {
-                service.vehicles.forEach((vehicle, vehicleIdx) => {
-                    const position = getVehiclePosition(vehicle, time, service);
-                    if (position) {
-                        const markerKey = `${service.id}-${vehicleIdx}`;
-                        const existingMarker = vehicleMarkers[markerKey];
-                        
-                        // Create arrow icon with direction
-                        const arrowIcon = createVehicleIcon(service.color, position.direction || 0, position.isStopped);
-                        
-                        if (existingMarker) {
-                            // Update position and icon
-                            existingMarker.setLatLng(position.coords);
-                            existingMarker.setIcon(arrowIcon);
+                if (service.type === 'fixed_route') {
+                    // Handle fixed route vehicles
+                    service.vehicles.forEach((vehicle, vehicleIdx) => {
+                        const position = getVehiclePosition(vehicle, time, service);
+                        if (position) {
+                            const markerKey = `${service.id}-${vehicleIdx}`;
+                            const existingMarker = vehicleMarkers[markerKey];
+                            
+                            // Create arrow icon with direction
+                            const arrowIcon = createVehicleIcon(service.color, position.direction || 0, position.isStopped);
+                            
+                            if (existingMarker) {
+                                // Update position and icon
+                                existingMarker.setLatLng(position.coords);
+                                existingMarker.setIcon(arrowIcon);
+                            } else {
+                                // Create new marker
+                                const vehicleMarker = L.marker(position.coords, {
+                                    icon: arrowIcon
+                                }).addTo(map);
+                                
+                                const state = position.isStopped ? 'Stopped' : 'Moving';
+                                vehicleMarker.bindPopup(`
+                                    <strong>Vehicle ${vehicleIdx + 1}</strong><br>
+                                    Service: ${service.service_name}<br>
+                                    State: ${state}<br>
+                                    Capacity: ${vehicle.capacity}<br>
+                                    Load: ${vehicle.current_load.toFixed(1)}
+                                `);
+                                
+                                vehicleMarker.on('click', () => showVehicleStats(service.id, vehicleIdx, vehicle));
+                                
+                                vehicleMarkers[markerKey] = vehicleMarker;
+                            }
                         } else {
-                            // Create new marker
-                            const vehicleMarker = L.marker(position.coords, {
-                                icon: arrowIcon
-                            }).addTo(map);
-                            
-                            const state = position.isStopped ? 'Stopped' : 'Moving';
-                            vehicleMarker.bindPopup(`
-                                <strong>Vehicle ${vehicleIdx + 1}</strong><br>
-                                Service: ${service.name}<br>
-                                State: ${state}<br>
-                                Capacity: ${vehicle.capacity}<br>
-                                Load: ${vehicle.current_load.toFixed(1)}
-                            `);
-                            
-                            vehicleMarker.on('click', () => showVehicleStats(service.id, vehicleIdx, vehicle));
-                            
-                            vehicleMarkers[markerKey] = vehicleMarker;
+                            // Remove marker if vehicle is not in service
+                            const markerKey = `${service.id}-${vehicleIdx}`;
+                            if (vehicleMarkers[markerKey]) {
+                                map.removeLayer(vehicleMarkers[markerKey]);
+                                delete vehicleMarkers[markerKey];
+                            }
                         }
-                    } else {
-                        // Remove marker if vehicle is not in service
+                    });
+                } else if (service.type === 'ondemand') {
+                    // Handle on-demand vehicles
+                    // Note: On-demand vehicles don't have timetables, so we show their current location
+                    // In a real implementation, you might want to update their positions based on simulation state
+                    service.vehicles.forEach((vehicle, vehicleIdx) => {
                         const markerKey = `${service.id}-${vehicleIdx}`;
-                        if (vehicleMarkers[markerKey]) {
-                            map.removeLayer(vehicleMarkers[markerKey]);
-                            delete vehicleMarkers[markerKey];
+                        const existingMarker = ondemandVehicleMarkers[markerKey];
+                        
+                        // For now, use the initial location from visualization data
+                        // In a full implementation, you'd update this based on simulation state
+                        if (vehicle.current_location) {
+                            const vehicleIcon = createOnDemandVehicleIcon(service.color);
+                            
+                            if (existingMarker) {
+                                // Update position (if location changes in simulation state)
+                                existingMarker.setLatLng(vehicle.current_location);
+                            } else {
+                                // Create new marker
+                                const vehicleMarker = L.marker(vehicle.current_location, {
+                                    icon: vehicleIcon
+                                }).addTo(map);
+                                
+                                vehicleMarker.bindPopup(`
+                                    <strong>On-Demand Vehicle</strong><br>
+                                    ID: ${vehicle.vehicle_id || `V${vehicleIdx + 1}`}<br>
+                                    Service: ${service.service_name}<br>
+                                    Capacity: ${vehicle.capacity}<br>
+                                    Location Hex: ${vehicle.current_location_hex_id || 'N/A'}
+                                `);
+                                
+                                ondemandVehicleMarkers[markerKey] = vehicleMarker;
+                            }
                         }
-                    }
-                });
+                    });
+                }
             });
             
-            // Remove markers for vehicles that are no longer active
+            // Remove markers for vehicles that are no longer active (fixed route only)
             Object.keys(vehicleMarkers).forEach(key => {
                 const [serviceId, vehicleIdx] = key.split('-').map(Number);
                 const service = visualizationData.services[serviceId];
-                if (!service || !service.vehicles[vehicleIdx]) {
+                if (!service || service.type !== 'fixed_route' || !service.vehicles[vehicleIdx]) {
                     map.removeLayer(vehicleMarkers[key]);
                     delete vehicleMarkers[key];
                 }

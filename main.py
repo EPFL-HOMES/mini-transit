@@ -237,10 +237,15 @@ def get_visualization_data(city_name: str = Query(..., description="City name"))
             centroid = row.geometry.centroid
             hex_coords[hex_id] = [centroid.y, centroid.x]  # [lat, lng] for Leaflet
 
-        # Get fixed route services
+        # Get fixed route services and on-demand services
         services_data = []
         for i, service in enumerate(api_server.network.services):
             from src.services.fixedroute import FixedRouteService
+            from src.services.ondemand import (
+                OnDemandRouteService,
+                OnDemandRouteServiceDocked,
+                OnDemandRouteServiceDockless,
+            )
 
             if isinstance(service, FixedRouteService):
                 # Get stop coordinates
@@ -282,12 +287,73 @@ def get_visualization_data(city_name: str = Query(..., description="City name"))
                         "id": i,
                         "name": f"S{i}",
                         "service_name": service.name,
+                        "type": "fixed_route",
                         "stops": stops_coords,
                         "stop_hex_ids": [stop.hex_id for stop in service.stops],
                         "vehicles": vehicles_data,
                         "color": _get_service_color(i),
                     }
                 )
+            elif isinstance(service, OnDemandRouteService):
+                # Handle on-demand services
+                vehicles_data = []
+                for vehicle in service.vehicles:
+                    # Get current location coordinates
+                    vehicle_location_coords = None
+                    if vehicle.current_location and vehicle.current_location.hex_id in hex_coords:
+                        vehicle_location_coords = hex_coords[vehicle.current_location.hex_id]
+
+                    vehicles_data.append(
+                        {
+                            "vehicle_id": vehicle.vehicle_id,
+                            "current_location": vehicle_location_coords,
+                            "current_location_hex_id": (
+                                vehicle.current_location.hex_id
+                                if vehicle.current_location
+                                else None
+                            ),
+                            "capacity": vehicle.capacity,
+                            "available_time": (
+                                vehicle.available_time.isoformat()
+                                if hasattr(vehicle, "available_time")
+                                else None
+                            ),
+                        }
+                    )
+
+                service_data = {
+                    "id": i,
+                    "name": f"S{i}",
+                    "service_name": service.name,
+                    "type": "ondemand",
+                    "vehicles": vehicles_data,
+                    "color": _get_service_color(i),
+                }
+
+                # Add docking stations if this is a docked service
+                if isinstance(service, OnDemandRouteServiceDocked):
+                    docking_stations_data = []
+                    for dock in service.docking_stations:
+                        if dock.location and dock.location.hex_id in hex_coords:
+                            docking_stations_data.append(
+                                {
+                                    "station_id": dock.station_id,
+                                    "location": hex_coords[dock.location.hex_id],
+                                    "location_hex_id": dock.location.hex_id,
+                                    "capacity": dock.capacity,
+                                    "current_vehicles_count": (
+                                        len(dock.current_vehicles)
+                                        if hasattr(dock, "current_vehicles")
+                                        else 0
+                                    ),
+                                }
+                            )
+                    service_data["docking_stations"] = docking_stations_data
+                    service_data["subtype"] = "docked"
+                elif isinstance(service, OnDemandRouteServiceDockless):
+                    service_data["subtype"] = "dockless"
+
+                services_data.append(service_data)
 
         return {
             "hexes": hex_coords,
