@@ -2,36 +2,36 @@
 Network class representing the transportation network of a city.
 """
 
-import json
-import os
-import sys
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import timedelta
 
 import networkx as nx
 import numpy as np
 
-from src.actions.ride import Ride
-from src.actions.walk import Walk
-from src.hex import Hex
-from src.services.fixedroute import FixedRouteService
-from src.services.ondemand import *
+from .primitives.route import RouteConfig
+
+from .actions.ride import Ride
+from .actions.walk import Walk
+from .services.fixedroute import FixedRouteService
+from .services.ondemand import *
 
 # Dynamic imports to avoid circular import issues
 try:
-    from .route import Route
+    from .primitives.route import Route
 except ImportError:
-    from src.route import Route
+    from .primitives.route import Route
 
 # TODO: actually find a way to input this to be customizable
 
 MAX_INTERMEDIARIES = 1
 
-# Add parent directory to path to import utils
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import utils
+from .graph import construct_graph
 
 # Simulation classes will be imported dynamically to avoid circular imports
 
+@dataclass
+class NetworkConfig(RouteConfig):
+    walk_speed: float = 10.0  # hexagons per hour
 
 class Network:
     """
@@ -43,14 +43,15 @@ class Network:
         routes_taken (list): A list of Route objects, representing the routes that have been taken during a simulation.
     """
 
-    def __init__(self, geojson_file_path: str):
+    def __init__(self, geojson_file_path: str, config = NetworkConfig()):
         """
         Initialize a Network object.
 
         Args:
             geojson_file_path (str): Path to the GeoJSON file for the city.
         """
-        self.graph = utils.construct_graph(geojson_file_path)
+        self.config = config
+        self.graph = construct_graph(geojson_file_path)
         self.services = []  # Will be populated later
         self.routes_taken = []  # Will be populated during simulation
 
@@ -185,7 +186,7 @@ class Network:
             }
         """
 
-        walk_speed = self._load_walk_speed_from_config()
+        walk_speed = self.config.walk_speed
 
         # 1. Shared stops → zero walking transfer
         shared = set(sa.stops) & set(sb.stops)
@@ -305,7 +306,7 @@ class Network:
 
         # TODO: calculate transfers properly in the form of including transfers BETWEEN walking and ride actions etc
         # still leaving todo here in case i'm missing something
-        return Route(unit=demand.unit, actions=actions, transfers=num_transfers)
+        return Route(unit=demand.unit, actions=actions, transfers=num_transfers, config=self.config)
 
     def get_optimal_route(self, demand, second_try=False):
         """
@@ -320,7 +321,7 @@ class Network:
             Route: The optimal route to fulfill the demand.
         """
 
-        walk_speed = self._load_walk_speed_from_config()
+        walk_speed = self.config.walk_speed
         # Find shortest path using NetworkX
         start = demand.start_hex
         end = demand.end_hex
@@ -350,7 +351,7 @@ class Network:
                 end_time=demand_time + timedelta(hours=walk_time),
             )
 
-            walk_route = Route(unit=demand.unit, actions=[walk_action], transfers=0)
+            walk_route = Route(unit=demand.unit, actions=[walk_action], transfers=0, config=self.config)
         else:
             walk_route = None
 
@@ -413,7 +414,7 @@ class Network:
                         walk_speed=walk_speed,
                     )
 
-                    route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2], transfers=0)
+                    route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2], transfers=0, config=self.config)
 
                     if route.total_cost < walk_fixed_best_cost:
                         walk_fixed_best_cost = route.total_cost
@@ -492,6 +493,7 @@ class Network:
                                     unit=demand.unit,
                                     actions=[walk1, wait1, ride1, wait2, ride2, walk2],
                                     transfers=1,
+                                    config=self.config
                                 )
 
                                 if route.total_cost < walk_fixed_best_cost:
@@ -576,6 +578,7 @@ class Network:
                         unit=demand.unit,
                         actions=[walk_to_vehicle, ride_action, walk_from_vehicle],
                         transfers=0,
+                        config=self.config
                     )
                     if ondemand_route.total_cost < ondemanddocked_best_cost:
                         ondemanddocked_best_cost = ondemand_route.total_cost
@@ -612,7 +615,7 @@ class Network:
                     vehicle=best_vehicle,
                 )
                 ondemand_route = Route(
-                    unit=demand.unit, actions=[walk_to_vehicle, ride_action], transfers=0
+                    unit=demand.unit, actions=[walk_to_vehicle, ride_action], transfers=0, config=self.config
                 )
                 if ondemand_route.total_cost < ondemanddockless_best_cost:
                     ondemanddockless_best_cost = ondemand_route.total_cost
@@ -658,18 +661,6 @@ class Network:
 
         return choice
 
-    def _load_walk_speed_from_config(self):
-        """Load walking speed from config.json."""
-        try:
-            config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "config.json"
-            )
-            with open(config_path, "r") as f:
-                config = json.load(f)
-            return config.get("walk_speed_hex_per_hour", 10.0)
-        except (FileNotFoundError, KeyError, json.JSONDecodeError):
-            return 10.0
-
     def push_route(self, route):
         """
         Add a route to the network's taken routes.
@@ -680,7 +671,7 @@ class Network:
         if route is not None:
             self.routes_taken.append(route)
 
-    def clear(self):
+    def clear_routes(self):
         """
         Clear all taken routes from the network.
         """

@@ -1,15 +1,17 @@
-import json
-import os
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List
-from typing import OrderedDict as TypingOrderedDict
-from typing import Tuple
 
-from src.actions import Ride, Wait
-from src.hex import Hex
-from src.route import Route
-from src.services import Service
+from ..actions import Ride
+from ..primitives.hex import Hex
+from ..primitives.route import Route
+from .service import Service
 
+@dataclass
+class OnDemandRouteServiceConfig:
+    ondemand_base_fare: float = 3.0  # Default base fare for on-demand services
+    ondemand_time_rate_per_minute: float = 0.1  # Default time rate per minute
+    ondemand_base_time_cutoff_minutes: int = 30  # Default base time cutoff in minutes
+    on_demand_speed: float = 35.0  # Default on-demand speed in hexagons per hour
 
 class OnDemandRouteService(Service):
     """
@@ -26,12 +28,13 @@ class OnDemandRouteService(Service):
     """
 
     def __init__(
-        self, name, vehicles: List["OnDemandVehicle"], capacity: float, network
+        self, name, vehicles: list["OnDemandVehicle"], capacity: float, network, config: OnDemandRouteServiceConfig = OnDemandRouteServiceConfig()
     ):  # Network is required here unlike FixedRouteService
         super().__init__(name)
         self.vehicles = vehicles  # List of OnDemandVehicle instances
         self.capacity = capacity
         self.network = network
+        self.config = config
 
     def get_fare(self, start_hex, end_hex, time=None) -> float:
         """
@@ -44,40 +47,14 @@ class OnDemandRouteService(Service):
         Returns:
             float: Fare amount.
         """
-
-        def _read_ondemand_fare_params_from_config():
-            # Placeholder for reading from config
-            config_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "../../data/config.json"
-            )
-            with open(config_path, "r") as f:
-                config = json.load(f)
-            base_fare = config.get("ondemand_base_fare", 3.0)  # Default to 3.0 if not specified
-            time_rate_per_minute = config.get(
-                "ondemand_time_rate_per_minute", 0.1
-            )  # Default to 0.1 if not specified
-            cutoff_minutes = config.get(
-                "ondemand_base_time_cutoff_minutes", 30
-            )  # Default to 30 if not specified
-            return base_fare, time_rate_per_minute, cutoff_minutes
-
-        base_fare, time_rate_per_minute, cutoff_minutes = _read_ondemand_fare_params_from_config()
         drive_time = self.compute_drive_time(start_hex, end_hex)
         total_minutes = drive_time.total_seconds() / 60
-        if total_minutes <= cutoff_minutes:
-            total_fare = base_fare
+        if total_minutes <= self.config.ondemand_base_time_cutoff_minutes:
+            total_fare = self.config.ondemand_base_fare
         else:
-            total_fare = base_fare + ((total_minutes - cutoff_minutes) * time_rate_per_minute)
+            total_fare = self.config.ondemand_base_fare + ((total_minutes - self.config.ondemand_base_time_cutoff_minutes) * self.config.ondemand_time_rate_per_minute)
 
         return total_fare
-
-    def _load_on_demand_speed_from_config(self):
-        config_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "../../data/config.json"
-        )
-        with open(config_path, "r") as f:
-            config = json.load(f)
-        return config.get("on_demand_speed", 35.0)  # Default to 35.0 if not specified
 
     def compute_drive_time(self, start_hex: Hex, end_hex: Hex) -> timedelta:
         """
@@ -91,7 +68,7 @@ class OnDemandRouteService(Service):
             timedelta: Estimated drive time.
         """
         distance = self.network.get_distance(start_hex, end_hex)
-        on_demand_speed = self._load_on_demand_speed_from_config()  # in hexes per hour
+        on_demand_speed = self.config.on_demand_speed  # in hexes per hour
         hours = distance / on_demand_speed
         return timedelta(hours=hours)
 
@@ -124,10 +101,10 @@ class OnDemandRouteServiceDocked(OnDemandRouteService):
     def __init__(
         self,
         name,
-        vehicles: List["OnDemandVehicle"],
+        vehicles: list["OnDemandVehicle"],
         capacity: float,
         network,
-        docking_stations: List["DockingStation"],
+        docking_stations: list["DockingStation"],
     ):
         super().__init__(name, vehicles, capacity, network)
         self.docking_stations = (
@@ -157,7 +134,7 @@ class DockingStation:
         self.station_id = station_id
         self.location = location
         self.capacity = capacity
-        self.current_vehicles: List[OnDemandVehicle] = (
+        self.current_vehicles: list[OnDemandVehicle] = (
             []
         )  # Vehicles currently docked at the station
 
@@ -209,7 +186,7 @@ class OnDemandRouteServiceDockless(OnDemandRouteService):
     Inherits from OnDemandRouteService.
     """
 
-    def __init__(self, name, vehicles: List["OnDemandVehicle"], capacity: float, network):
+    def __init__(self, name, vehicles: list["OnDemandVehicle"], capacity: float, network):
         super().__init__(name, vehicles, capacity, network)
         # No docking stations for dockless service
 

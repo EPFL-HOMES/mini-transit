@@ -1,5 +1,7 @@
 """
 APIServer class that talks with frontend and starts the simulation.
+
+==== KEPT FOR REFERENCE ONLY, SHOULD BE DELETED LATER ====
 """
 
 import json
@@ -8,19 +10,18 @@ import sys
 
 import pandas as pd
 
+from .serialization import serialize_action, serialize_action_dict
+
 # Add parent directory to path to import other modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from typing import List
 
-from src.actions.ride import Ride
-from src.actions.wait import Wait
-from src.actions.walk import Walk
-from src.demand import Demand
-from src.hex import Hex
-from src.models import DemandInput, FixedRouteServiceModel
-from src.network import Network
-from src.sampler import DemandSampler
-from src.simulation import Simulation
+from .demand.demand import Demand
+from .primitives.hex import Hex
+from .models import DemandInput, FixedRouteServiceModel
+from .network import Network
+from .demand.sampler import DemandSampler
+from .simulation import Simulation
 
 
 class APIServer:
@@ -106,7 +107,7 @@ class APIServer:
         """
         from datetime import datetime, timedelta
 
-        from src.services.fixedroute import FixedRouteService
+        from .services.fixedroute import FixedRouteService
 
         # Check if file exists
         if not os.path.exists(json_path):
@@ -188,7 +189,7 @@ class APIServer:
             *args: Positional arguments for FixedRouteService.
             **kwargs: Keyword arguments for FixedRouteService.
         """
-        from src.services.fixedroute import FixedRouteService
+        from .services.fixedroute import FixedRouteService
 
         for service_model in services:
             fixed_route_service = FixedRouteService(
@@ -277,7 +278,7 @@ class APIServer:
             print(f"DEBUG: Full config: {self.config}")
 
             # Clear previous routes
-            self.network.clear()
+            self.network.clear_routes()
 
             # Filter input demands by the specified hour
             filtered_demand_inputs = [
@@ -380,103 +381,9 @@ class APIServer:
                 for action in route.actions:
                     # Handle both Action objects and dictionary actions
                     if hasattr(action, "start_time"):
-                        # Action object
-                        action_data = {
-                            "type": action.__class__.__name__,
-                            "start_time": action.start_time.strftime("%H:%M"),
-                            "end_time": (
-                                action.end_time.strftime("%H:%M") if action.end_time else None
-                            ),
-                            "duration_minutes": action.duration_minutes,
-                        }
-
-                        # Add specific fields for different action types
-                        if isinstance(action, Walk):
-                            action_data.update(
-                                {
-                                    "start_hex": action.start_hex.hex_id,
-                                    "end_hex": action.end_hex.hex_id,
-                                    "walk_speed": action.walk_speed,
-                                    "distance": action.distance,
-                                }
-                            )
-                        elif isinstance(action, Ride):
-                            action_data.update(
-                                {
-                                    "start_hex": action.start_hex.hex_id,
-                                    "end_hex": action.end_hex.hex_id,
-                                }
-                            )
-                        elif isinstance(action, Wait):
-                            # For Wait, location is the hex where waiting occurs
-                            action_data.update(
-                                {
-                                    "start_hex": action.location.hex_id,
-                                    "end_hex": action.location.hex_id,
-                                }
-                            )
+                        action_data = serialize_action(action)
                     elif isinstance(action, dict):
-                        # Dictionary action
-                        start_time_obj = action["start_time"]
-                        end_time_obj = action.get("end_time")
-                        action_data = {
-                            "type": action.get("type", "Unknown"),
-                            "start_time": (
-                                start_time_obj.strftime("%H:%M")
-                                if hasattr(start_time_obj, "strftime")
-                                else str(start_time_obj)
-                            ),
-                            "end_time": (
-                                end_time_obj.strftime("%H:%M")
-                                if end_time_obj and hasattr(end_time_obj, "strftime")
-                                else (str(end_time_obj) if end_time_obj else None)
-                            ),
-                            "duration_minutes": (
-                                (end_time_obj - start_time_obj).total_seconds() / 60.0
-                                if end_time_obj and hasattr(end_time_obj, "__sub__")
-                                else 0.0
-                            ),
-                        }
-
-                        # Add specific fields for different action types
-                        action_type = action.get("type")
-                        if action_type == "Walk":
-                            action_data.update(
-                                {
-                                    "start_hex": action["start_hex"].hex_id,
-                                    "end_hex": action["end_hex"].hex_id,
-                                    "walk_speed": action["walk_speed"],
-                                    "distance": action["distance"],
-                                }
-                            )
-                        elif action_type == "Ride":
-                            if "start_hex" in action and "end_hex" in action:
-                                action_data.update(
-                                    {
-                                        "start_hex": (
-                                            action["start_hex"].hex_id
-                                            if hasattr(action["start_hex"], "hex_id")
-                                            else action["start_hex"]
-                                        ),
-                                        "end_hex": (
-                                            action["end_hex"].hex_id
-                                            if hasattr(action["end_hex"], "hex_id")
-                                            else action["end_hex"]
-                                        ),
-                                    }
-                                )
-                        elif action_type == "Wait":
-                            if "location" in action:
-                                location = action["location"]
-                                location_hex_id = (
-                                    location.hex_id if hasattr(location, "hex_id") else location
-                                )
-                                action_data.update(
-                                    {
-                                        "start_hex": location_hex_id,
-                                        "end_hex": location_hex_id,
-                                    }
-                                )
+                        action_data = serialize_action_dict(action)
 
                     route_data["actions"].append(action_data)
 

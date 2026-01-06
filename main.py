@@ -16,8 +16,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-import utils
-from src.apiserver import APIServer
+import src.minitransit_simulation.graph as graph  # Ensure graph module is imported
+from src.other.apiserver import APIServer
 
 app = FastAPI(title="mini-transit simulation", version="0.0.1")
 
@@ -59,7 +59,7 @@ def load_city_data(city_name: str) -> Dict[str, Any]:
         gdf = gpd.read_file(city_info["geojson"])
 
         # Build network graph
-        G = utils.construct_graph(city_info["geojson"])
+        G = graph.construct_graph(city_info["geojson"])
 
         # Calculate centroids for network visualization
         gdf_with_centroids = gdf.copy().reset_index(drop=True)
@@ -240,7 +240,7 @@ def get_visualization_data(city_name: str = Query(..., description="City name"))
         # Get fixed route services
         services_data = []
         for i, service in enumerate(api_server.network.services):
-            from src.services.fixedroute import FixedRouteService
+            from src.minitransit_simulation.services.fixedroute import FixedRouteService
 
             if isinstance(service, FixedRouteService):
                 # Get stop coordinates

@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from src.actions.action import Action
-from src.hex import Hex
+from .action import Action
+from ..primitives.hex import Hex
 
 
 class Wait(Action):

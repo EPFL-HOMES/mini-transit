@@ -2,12 +2,16 @@
 Route class representing a complete route taken by a unit.
 """
 
-import json
-import os
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import List
 
-from src.actions.action import Action
+from ..actions.action import Action
+
+@dataclass
+class RouteConfig:
+    utility_function_alpha: float = 1.5
+    utility_function_phi: float = 2.0
 
 
 class Route:
@@ -21,7 +25,7 @@ class Route:
         total_fare (float): Total fare for this route.
     """
 
-    def __init__(self, unit: float, actions: List[Action] = [], transfers: int = 0):
+    def __init__(self, unit: float, actions: List[Action] = [], transfers: int = 0, config: RouteConfig = RouteConfig()):
         """
         Initialize a Route object.
 
@@ -29,6 +33,7 @@ class Route:
             unit (float): Number of units that took this route.
             actions: List of actions in this route (can be Action objects or dictionaries).
         """
+        self.config = config
         self.unit = unit
         self.actions = actions
         self.num_transfers = transfers
@@ -46,18 +51,6 @@ class Route:
             float: Total cost for this route.
         """
 
-        def _read_utility_function_params_from_config():
-            # Placeholder for reading from config
-            config_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "../../data/config.json"
-            )
-            with open(config_path, "r") as f:
-                config = json.load(f)
-            alpha = config.get("utility_function_alpha", 1.5)  # Default to 1.5 if not specified
-            phi = config.get("utility_function_phi", 2.0)  # Default to 2.0 if not specified
-            return alpha, phi
-
-        alpha, phi = _read_utility_function_params_from_config()
         total_fare = self._calculate_total_fare()
         total_in_vehicle_time = (
             self._calculate_total_in_vehicle_time().total_seconds() / 60.0
@@ -66,8 +59,8 @@ class Route:
         total_wait_time = self._calculate_total_wait_time().total_seconds() / 60.0  # in minutes
         total_cost = (
             -total_fare
-            - alpha * (total_in_vehicle_time + total_access_time + total_wait_time)
-            - phi * self.num_transfers
+            - self.config.alpha * (total_in_vehicle_time + total_access_time + total_wait_time)
+            - self.config.phi * self.num_transfers
         )
 
         return total_cost

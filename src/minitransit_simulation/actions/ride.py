@@ -1,10 +1,8 @@
-import json
-import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from src.actions.action import Action
-from src.hex import Hex
-from src.services import Service
+from .action import Action
+from ..primitives.hex import Hex
+from ..services import Service
 
 
 class Ride(Action):
