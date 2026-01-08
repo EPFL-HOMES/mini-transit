@@ -1,5 +1,6 @@
 """
-APIServer class that talks with frontend and starts the simulation.
+SimulationRunner module that configures, runs, and serializes transit simulations.
+Defines SimulationRunner, its configuration, and input/output data structures.
 """
 
 import json
@@ -38,12 +39,14 @@ class SimulationRunnerConfig(NetworkConfig, FixedRouteServiceConfig, OnDemandRou
             return cls(**config)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Warning: Could not load config from {file_path}: {e}. Using defaults.")
-            return {
-                "walk_speed": 10.0,
-                "unit_sizes": [5],
-                "seed": None,
-                "sampling": True,
-            }
+            return cls(
+                **{
+                    "walk_speed": 10.0,
+                    "unit_sizes": [5],
+                    "seed": None,
+                    "sampling": True,
+                }
+            )
 
 
 @dataclass
@@ -91,8 +94,7 @@ class SimulationRunnerResult:
         Save simulation results to a JSON file.
 
         Args:
-            result (dict): The simulation result dictionary.
-            simulation_hour (int): The hour of the simulation.
+            path (str): Destination file path where the simulation results JSON will be written.
         """
         try:
             import traceback
@@ -119,7 +121,7 @@ class SimulationRunner:
     """
 
     def __init__(self, config: SimulationRunnerConfig):
-        """Initialize the APIServer."""
+        """Initialize the SimulationRunner with the given configuration."""
         self.network = None
         self.demand_inputs = []  # Store input demands (DemandInput objects)
         self.city_name = None
@@ -150,19 +152,21 @@ class SimulationRunner:
             SimulationRunnerResult: JSON output with simulation results.
         """
         if not self.network or not self.demand_inputs:
-            return {
-                "status": "error",
-                "message": "Simulation not initialized. Please select a city first.",
-                "routes": [],
-            }
+            return SimulationRunnerResult(
+                status="error",
+                message="Simulation not initialized. Please select a city first.",
+                routes=[],
+            )
 
         try:
             from datetime import datetime, timedelta
 
             # Extract simulation parameters
-            simulation_hour = input_json.get("hour", 8)  # Default to hour 8 if not specified
+            simulation_hour = (
+                input_json.hour if hasattr(input_json, "hour") else 8
+            )  # Default to hour 8 if not specified
 
-            use_sampling = self.config.get("sampling", True)
+            use_sampling = self.config.sampling if hasattr(self.config, "sampling") else True
             print(f"DEBUG: Sampling flag from config: {use_sampling} (type: {type(use_sampling)})")
             print(f"DEBUG: Full config: {self.config}")
 
@@ -177,14 +181,13 @@ class SimulationRunner:
             ]
 
             if not filtered_demand_inputs:
-                return {
-                    "status": "warning",
-                    "message": f"No input demands found for hour {simulation_hour}",
-                    "routes": [],
-                    "simulation_time": "0.00s",
-                    "demands_processed": 0,
-                    "routes_generated": 0,
-                }
+                return SimulationRunnerResult(
+                    status="warning",
+                    message=f"No input demands found for hour {simulation_hour}",
+                    routes=[],
+                    simulation_time="0.00s",
+                    routes_generated=0,
+                )
 
             simulation_start_time = datetime.now()
 
@@ -194,8 +197,10 @@ class SimulationRunner:
                     f"DEBUG: Using sampling mode. Input demands count: {len(filtered_demand_inputs)}"
                 )
                 # Sample demands from input demands using DemandSampler
-                unit_sizes = self.config.get("unit_sizes", [5])
-                seed = self.config.get("seed", None)  # None means no seed (random)
+                unit_sizes = self.config.unit_sizes or [5]
+                seed = (
+                    self.config.seed if hasattr(self.config, "seed") else None
+                )  # None means no seed (random)
                 print(f"DEBUG: Sampler config - unit_sizes: {unit_sizes}, seed: {seed}")
                 sampler = DemandSampler(unit_sizes=unit_sizes, seed=seed)
                 processed_demands = sampler.sample_hourly_demand(filtered_demand_inputs)
@@ -204,14 +209,13 @@ class SimulationRunner:
                 )
 
                 if not processed_demands:
-                    return {
-                        "status": "warning",
-                        "message": f"No demands sampled for hour {simulation_hour}",
-                        "routes": [],
-                        "simulation_time": "0.00s",
-                        "demands_processed": 0,
-                        "routes_generated": 0,
-                    }
+                    return SimulationRunnerResult(
+                        status="warning",
+                        message=f"No demands sampled for hour {simulation_hour}",
+                        routes=[],
+                        simulation_time="0.00s",
+                        routes_generated=0,
+                    )
             else:
                 print(f"DEBUG: Using direct conversion mode (no sampling)")
                 # Convert DemandInput to Demand objects directly (old behavior)
@@ -235,14 +239,13 @@ class SimulationRunner:
                     processed_demands.append(demand)
 
                 if not processed_demands:
-                    return {
-                        "status": "warning",
-                        "message": f"No demands found for hour {simulation_hour}",
-                        "routes": [],
-                        "simulation_time": "0.00s",
-                        "demands_processed": 0,
-                        "routes_generated": 0,
-                    }
+                    return SimulationRunnerResult(
+                        status="warning",
+                        message=f"No demands found for hour {simulation_hour}",
+                        routes=[],
+                        simulation_time="0.00s",
+                        routes_generated=0,
+                    )
 
             # Initialize event-driven simulation
             simulation = Simulation(self.network)
@@ -299,12 +302,31 @@ class SimulationRunner:
                 "network_routes_taken": len(self.network.routes_taken),
             }
 
-            return result
+            return SimulationRunnerResult(
+                status="success",
+                message=f"Simulation completed successfully for hour {simulation_hour}",
+                routes=routes_data,
+                simulation_time=f"{simulation_duration:.2f}s",
+                simulation_hour=simulation_hour,
+                demands_processed=len(processed_demands),
+                input_demands_count=len(filtered_demand_inputs),
+                sampling_enabled=use_sampling,
+                routes_generated=len(routes),
+                total_units=sum(route.unit for route in routes),
+                total_time_minutes=sum(route.time_taken_minutes for route in routes),
+                total_fare=total_fare,
+                average_fare=average_fare,
+                network_routes_taken=len(self.network.routes_taken),
+            )
         except Exception as e:
             import traceback
 
             traceback.print_exc()
-            return {"status": "error", "message": f"Simulation failed: {str(e)}", "routes": []}
+            return SimulationRunnerResult(
+                status="error",
+                message=f"Simulation failed: {str(e)}",
+                routes=[],
+            )
 
     def get_network_info(self):
         """

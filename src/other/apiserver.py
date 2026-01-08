@@ -87,11 +87,11 @@ class APIServer:
         try:
             result = self.runner.run_simulation(input_json)
             # Store last simulation result for visualization
-            if result.get("status") == "success":
+            if result.status == "success":
                 self.last_simulation_result = {
                     "result": result,
                     "routes": result.routes,
-                    "simulation_hour": result.get("simulation_hour"),
+                    "simulation_hour": result.simulation_hour,
                 }
 
                 print(

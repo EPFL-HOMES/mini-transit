@@ -43,7 +43,7 @@ def construct_graph(network):
     Construct a networkx graph from a geojson file
 
     Args:
-        network (str): network file name (inlcuding .geojson)
+        network (str): network file name (including .geojson)
 
     Returns:
         G (networkx object): graph
