@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+
 from .actions.action import Action
 from .actions.ride import Ride
 from .actions.wait import Wait

@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from .action import Action
 from ..primitives.hex import Hex
 from ..services import Service
+from .action import Action
 
 
 class Ride(Action):

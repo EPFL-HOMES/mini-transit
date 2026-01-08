@@ -6,6 +6,7 @@ from ..primitives.hex import Hex
 from ..primitives.route import Route
 from .service import Service
 
+
 @dataclass
 class OnDemandRouteServiceConfig:
     ondemand_base_fare: float = 3.0  # Default base fare for on-demand services

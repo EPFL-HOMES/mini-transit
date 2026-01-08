@@ -1,16 +1,17 @@
-from dataclasses import dataclass
 import json
 import os
 from collections import OrderedDict
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List
 from typing import OrderedDict as TypingOrderedDict
 from typing import Tuple
 
 from ..actions import Ride, Wait
-from ..primitives.hex import Hex
 from ..models import NetworkModel
+from ..primitives.hex import Hex
 from .service import Service
+
 
 @dataclass
 class FixedRouteServiceConfig:

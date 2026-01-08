@@ -3,9 +3,10 @@ Demand class representing a specific travel demand or request.
 """
 
 from datetime import datetime
-import pandas as pd
-from ..models import DemandInput
 
+import pandas as pd
+
+from ..models import DemandInput
 from ..primitives.hex import Hex
 
 

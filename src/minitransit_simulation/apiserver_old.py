@@ -17,10 +17,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from typing import List
 
 from .demand.demand import Demand
-from .primitives.hex import Hex
+from .demand.sampler import DemandSampler
 from .models import DemandInput, FixedRouteServiceModel
 from .network import Network
-from .demand.sampler import DemandSampler
+from .primitives.hex import Hex
 from .simulation import Simulation
 
 

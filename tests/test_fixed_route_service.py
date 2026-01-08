@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from src.minitransit_simulation.primitives.hex import Hex
 from src.minitransit_simulation.network import Network
+from src.minitransit_simulation.primitives.hex import Hex
 
 # 🔁 CHANGE THIS to the actual module where FixedRouteService lives
 from src.minitransit_simulation.services.fixedroute import FixedRouteService

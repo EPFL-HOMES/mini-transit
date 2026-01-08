@@ -15,6 +15,7 @@ import networkx as nx
 import panel as pn  # Optional: Often used with hvPlot/HoloViews for layout/widgets
 from matplotlib.colors import Normalize
 
+
 def plot_network(G, geo_df, hour, selected_hex=None, demand_type="total", static=True):
     """
     Plots the network hourly demand in selected zones

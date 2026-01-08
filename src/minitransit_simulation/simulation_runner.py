@@ -3,15 +3,16 @@ APIServer class that talks with frontend and starts the simulation.
 """
 
 import json
+from dataclasses import asdict, dataclass, field
 
 from src.minitransit_simulation.services.ondemand import OnDemandRouteServiceConfig
 
-from .serialization import SerializedAction, serialize_action, serialize_action_dict
-from .demand import Demand, demand_input_from_csv, DemandSampler
+from .demand import Demand, DemandSampler, demand_input_from_csv
 from .network import Network, NetworkConfig
+from .serialization import SerializedAction, serialize_action, serialize_action_dict
 from .services.fixedroute import FixedRouteServiceConfig, fixed_route_services_from_json
 from .simulation import Simulation
-from dataclasses import asdict, dataclass, field
+
 
 @dataclass
 class SimulationRunnerConfig(NetworkConfig, FixedRouteServiceConfig, OnDemandRouteServiceConfig):

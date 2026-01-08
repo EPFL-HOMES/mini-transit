@@ -8,10 +8,9 @@ from datetime import timedelta
 import networkx as nx
 import numpy as np
 
-from .primitives.route import RouteConfig
-
 from .actions.ride import Ride
 from .actions.walk import Walk
+from .primitives.route import RouteConfig
 from .services.fixedroute import FixedRouteService
 from .services.ondemand import *
 

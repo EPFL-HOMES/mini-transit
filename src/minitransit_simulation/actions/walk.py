@@ -7,8 +7,9 @@ from datetime import datetime, timedelta
 
 import networkx as nx
 
-from .action import Action
 from ..primitives.hex import Hex
+from .action import Action
+
 
 @dataclass
 class WalkConfig:

@@ -4,9 +4,9 @@ from typing import List
 
 import pytest
 
-from src.minitransit_simulation.primitives.hex import Hex
-from src.minitransit_simulation.models import DemandInput
 from src.minitransit_simulation.demand.sampler import DemandSampler
+from src.minitransit_simulation.models import DemandInput
+from src.minitransit_simulation.primitives.hex import Hex
 
 # ---------- Fixtures ----------
 

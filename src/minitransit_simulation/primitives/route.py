@@ -8,6 +8,7 @@ from typing import List
 
 from ..actions.action import Action
 
+
 @dataclass
 class RouteConfig:
     utility_function_alpha: float = 1.5
