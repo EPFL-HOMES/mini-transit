@@ -26,7 +26,13 @@ class Route:
         total_fare (float): Total fare for this route.
     """
 
-    def __init__(self, unit: float, actions: List[Action] = [], transfers: int = 0, config: RouteConfig = RouteConfig()):
+    def __init__(
+        self,
+        unit: float,
+        actions: List[Action] = [],
+        transfers: int = 0,
+        config: RouteConfig = RouteConfig(),
+    ):
         """
         Initialize a Route object.
 

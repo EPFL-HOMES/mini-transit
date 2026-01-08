@@ -28,9 +28,11 @@ from .graph import construct_graph
 
 # Simulation classes will be imported dynamically to avoid circular imports
 
+
 @dataclass
 class NetworkConfig(RouteConfig):
     walk_speed: float = 10.0  # hexagons per hour
+
 
 class Network:
     """
@@ -42,7 +44,7 @@ class Network:
         routes_taken (list): A list of Route objects, representing the routes that have been taken during a simulation.
     """
 
-    def __init__(self, geojson_file_path: str, config = NetworkConfig()):
+    def __init__(self, geojson_file_path: str, config=NetworkConfig()):
         """
         Initialize a Network object.
 
@@ -350,7 +352,9 @@ class Network:
                 end_time=demand_time + timedelta(hours=walk_time),
             )
 
-            walk_route = Route(unit=demand.unit, actions=[walk_action], transfers=0, config=self.config)
+            walk_route = Route(
+                unit=demand.unit, actions=[walk_action], transfers=0, config=self.config
+            )
         else:
             walk_route = None
 
@@ -413,7 +417,12 @@ class Network:
                         walk_speed=walk_speed,
                     )
 
-                    route = Route(unit=demand.unit, actions=[walk1, wait, ride, walk2], transfers=0, config=self.config)
+                    route = Route(
+                        unit=demand.unit,
+                        actions=[walk1, wait, ride, walk2],
+                        transfers=0,
+                        config=self.config,
+                    )
 
                     if route.total_cost < walk_fixed_best_cost:
                         walk_fixed_best_cost = route.total_cost
@@ -492,7 +501,7 @@ class Network:
                                     unit=demand.unit,
                                     actions=[walk1, wait1, ride1, wait2, ride2, walk2],
                                     transfers=1,
-                                    config=self.config
+                                    config=self.config,
                                 )
 
                                 if route.total_cost < walk_fixed_best_cost:
@@ -577,7 +586,7 @@ class Network:
                         unit=demand.unit,
                         actions=[walk_to_vehicle, ride_action, walk_from_vehicle],
                         transfers=0,
-                        config=self.config
+                        config=self.config,
                     )
                     if ondemand_route.total_cost < ondemanddocked_best_cost:
                         ondemanddocked_best_cost = ondemand_route.total_cost
@@ -614,7 +623,10 @@ class Network:
                     vehicle=best_vehicle,
                 )
                 ondemand_route = Route(
-                    unit=demand.unit, actions=[walk_to_vehicle, ride_action], transfers=0, config=self.config
+                    unit=demand.unit,
+                    actions=[walk_to_vehicle, ride_action],
+                    transfers=0,
+                    config=self.config,
                 )
                 if ondemand_route.total_cost < ondemanddockless_best_cost:
                     ondemanddockless_best_cost = ondemand_route.total_cost

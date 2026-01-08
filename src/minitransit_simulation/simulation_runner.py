@@ -16,7 +16,7 @@ from .simulation import Simulation
 
 @dataclass
 class SimulationRunnerConfig(NetworkConfig, FixedRouteServiceConfig, OnDemandRouteServiceConfig):
-    # We use field(default_factory=...) for lists to avoid 
+    # We use field(default_factory=...) for lists to avoid
     # the "mutable default argument" error in Python
     unit_sizes: list[int] = field(default_factory=lambda: [5])
     seed: int | None = None
@@ -45,30 +45,36 @@ class SimulationRunnerConfig(NetworkConfig, FixedRouteServiceConfig, OnDemandRou
                 "sampling": True,
             }
 
+
 @dataclass
 class SimulationRunnerInput:
     """Input parameters for running the simulation."""
+
     hour: int  # Hour when simulation starts (filters demands by this hour)
+
 
 @dataclass
 class SimulationRunnerResultRoute:
     """Represents a full journey taken by a demand unit."""
+
     unit: int
     time_taken_minutes: float
     total_fare: float
     actions: list[SerializedAction]
 
+
 @dataclass
 class SimulationRunnerResult:
     """The complete response shape returned by run_simulation."""
+
     status: str  # "success", "warning", or "error"
     message: str
     routes: list[SimulationRunnerResultRoute]
-    
+
     # Timing and count metadata (present in success and warning)
     simulation_time: str | None = None
     routes_generated: int | None = None
-    
+
     # Extended metrics (only present in "success" status)
     simulation_hour: int | None = None
     demands_processed: int | None = None
@@ -103,7 +109,6 @@ class SimulationRunnerResult:
             traceback.print_exc()
 
 
-
 class SimulationRunner:
     """
     Main server class that handles simulation requests and manages city data.
@@ -119,7 +124,7 @@ class SimulationRunner:
         self.demand_inputs = []  # Store input demands (DemandInput objects)
         self.city_name = None
         self.config = config
-    
+
     def init_area(self, geojson_path: str, demands_path: str, fixedroute_json_path: str):
         """
         Initialize the application for a given city.

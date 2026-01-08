@@ -49,7 +49,6 @@ class Demand:
         )
 
 
-
 def demand_input_from_csv(csv_path: str):
     """
     Load input demands from CSV file as DemandInput objects.

@@ -62,7 +62,7 @@ class APIServer:
         geojson_path = f"data/{city_name}/{city_name}.geojson"
         demands_path = f"data/{city_name}/{city_name}_time_dependent_demands.csv"
         fixed_route_services_path = f"data/{city_name}/fixed_route_services.json"
-        
+
         self.runner.init_area(
             geojson_path=geojson_path,
             demands_path=demands_path,
@@ -93,7 +93,7 @@ class APIServer:
                     "routes": result.routes,
                     "simulation_hour": result.get("simulation_hour"),
                 }
-            
+
                 print(
                     f"DEBUG: last_simulation_result stored: {self.last_simulation_result is not None}"
                 )
@@ -129,7 +129,9 @@ class APIServer:
             from datetime import datetime
 
             city_name = self.city_name or "Unknown"
-            print(f"Starting to save simulation results for {city_name} hour {result.simulation_hour}")
+            print(
+                f"Starting to save simulation results for {city_name} hour {result.simulation_hour}"
+            )
 
             # Create results directory if it doesn't exist
             results_dir = os.path.join(

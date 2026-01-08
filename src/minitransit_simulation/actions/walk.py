@@ -15,6 +15,7 @@ from .action import Action
 class WalkConfig:
     walk_speed: float = 10.0  # Default walking speed in hexagons per hour
 
+
 class Walk(Action):
     """
     Represents a walking action between two hexagons.

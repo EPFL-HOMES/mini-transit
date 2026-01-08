@@ -9,30 +9,38 @@ from .actions.walk import Walk
 @dataclass
 class BaseSerializedAction:
     """Common fields present in all serialized actions."""
+
     type: str
     start_time: str  # Format: "HH:MM"
     end_time: str | None  # Format: "HH:MM"
     duration_minutes: float
 
+
 @dataclass
 class WalkSerializedAction(BaseSerializedAction):
     """Fields specific to a serialized 'Walk' action."""
+
     start_hex: int
     end_hex: int
     walk_speed: float
     distance: float
 
+
 @dataclass
 class RideSerializedAction(BaseSerializedAction):
     """Fields specific to a serialized 'Ride' action."""
+
     start_hex: int
     end_hex: int
+
 
 @dataclass
 class WaitSerializedAction(BaseSerializedAction):
     """Fields specific to a serialized 'Wait' action."""
+
     start_hex: int
     end_hex: int
+
 
 # Type alias for convenience when typing a list of actions
 SerializedAction = WalkSerializedAction | RideSerializedAction | WaitSerializedAction
@@ -52,9 +60,7 @@ def serialize_action(action: Action) -> dict:
     action_data = {
         "type": action.__class__.__name__,
         "start_time": action.start_time.strftime("%H:%M"),
-        "end_time": (
-            action.end_time.strftime("%H:%M") if action.end_time else None
-        ),
+        "end_time": (action.end_time.strftime("%H:%M") if action.end_time else None),
         "duration_minutes": action.duration_minutes,
     }
 
@@ -83,8 +89,9 @@ def serialize_action(action: Action) -> dict:
                 "end_hex": action.location.hex_id,
             }
         )
-    
+
     return action_data
+
 
 # Formerly in APIServer.run_simulation, moved to separate file for clarity
 def serialize_action_dict(action: dict) -> dict:
@@ -149,14 +156,12 @@ def serialize_action_dict(action: dict) -> dict:
     elif action_type == "Wait":
         if "location" in action:
             location = action["location"]
-            location_hex_id = (
-                location.hex_id if hasattr(location, "hex_id") else location
-            )
+            location_hex_id = location.hex_id if hasattr(location, "hex_id") else location
             action_data.update(
                 {
                     "start_hex": location_hex_id,
                     "end_hex": location_hex_id,
                 }
             )
-    
+
     return action_data

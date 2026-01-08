@@ -17,6 +17,7 @@ from .service import Service
 class FixedRouteServiceConfig:
     fixedroute_base_fare: float = 2.4  # Default base fare for fixed route services
 
+
 class FixedRouteService(Service):
     """
     Represents a fixed-route transportation service.
@@ -312,7 +313,9 @@ class FixedRouteVehicle:
         return f"FixedRouteVehicle(service={self.service.name}, timetable={self.timetable})"
 
 
-def fixed_route_services_from_json(json_path: str, network: NetworkModel) -> list[FixedRouteService]:
+def fixed_route_services_from_json(
+    json_path: str, network: NetworkModel
+) -> list[FixedRouteService]:
     """
     Load fixed-route services from JSON file and add them to the network.
 
@@ -354,9 +357,7 @@ def fixed_route_services_from_json(json_path: str, network: NetworkModel) -> lis
             capacity = float(service_info.get("capacity", 50))  # Default 50
 
             # Get stopping_time and travel_time from JSON (in minutes), use defaults if not provided
-            stopping_time_minutes = service_info.get(
-                "stopping_time", default_stopping_time_minutes
-            )
+            stopping_time_minutes = service_info.get("stopping_time", default_stopping_time_minutes)
             travel_time_minutes = service_info.get("travel_time", default_travel_time_minutes)
 
             # Convert minutes to timedelta
@@ -391,7 +392,7 @@ def fixed_route_services_from_json(json_path: str, network: NetworkModel) -> lis
             print(
                 f"Loaded service: {name} with {len(stops)} stops, frequency {frequency_minutes} min, capacity {capacity}, stopping_time {stopping_time_minutes} min, travel_time {travel_time_minutes} min"
             )
-        
+
         return services
 
     except Exception as e:

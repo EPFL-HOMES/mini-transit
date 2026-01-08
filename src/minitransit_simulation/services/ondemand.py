@@ -14,6 +14,7 @@ class OnDemandRouteServiceConfig:
     ondemand_base_time_cutoff_minutes: int = 30  # Default base time cutoff in minutes
     on_demand_speed: float = 35.0  # Default on-demand speed in hexagons per hour
 
+
 class OnDemandRouteService(Service):
     """
     Represents an on-demand transportation service - in this case simulating bike-sharing.
@@ -29,7 +30,12 @@ class OnDemandRouteService(Service):
     """
 
     def __init__(
-        self, name, vehicles: list["OnDemandVehicle"], capacity: float, network, config: OnDemandRouteServiceConfig = OnDemandRouteServiceConfig()
+        self,
+        name,
+        vehicles: list["OnDemandVehicle"],
+        capacity: float,
+        network,
+        config: OnDemandRouteServiceConfig = OnDemandRouteServiceConfig(),
     ):  # Network is required here unlike FixedRouteService
         super().__init__(name)
         self.vehicles = vehicles  # List of OnDemandVehicle instances
@@ -53,7 +59,10 @@ class OnDemandRouteService(Service):
         if total_minutes <= self.config.ondemand_base_time_cutoff_minutes:
             total_fare = self.config.ondemand_base_fare
         else:
-            total_fare = self.config.ondemand_base_fare + ((total_minutes - self.config.ondemand_base_time_cutoff_minutes) * self.config.ondemand_time_rate_per_minute)
+            total_fare = self.config.ondemand_base_fare + (
+                (total_minutes - self.config.ondemand_base_time_cutoff_minutes)
+                * self.config.ondemand_time_rate_per_minute
+            )
 
         return total_fare
 
