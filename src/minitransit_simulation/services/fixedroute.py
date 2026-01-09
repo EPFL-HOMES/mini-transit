@@ -1,15 +1,21 @@
 import json
 import os
 from collections import OrderedDict
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List
 from typing import OrderedDict as TypingOrderedDict
 from typing import Tuple
 
-from src.actions import Ride, Wait
-from src.hex import Hex
-from src.models import NetworkModel
-from src.services import Service
+from ..actions import Ride, Wait
+from ..models import NetworkModel
+from ..primitives.hex import Hex
+from .service import Service
+
+
+@dataclass
+class FixedRouteServiceConfig:
+    fixedroute_base_fare: float = 2.4  # Default base fare for fixed route services
 
 
 class FixedRouteService(Service):
@@ -39,8 +45,10 @@ class FixedRouteService(Service):
         network: NetworkModel,
         freq_period: List[Tuple[datetime, datetime, timedelta]],
         bidirectional: bool = True,
+        config: FixedRouteServiceConfig = FixedRouteServiceConfig(),
     ):
         super().__init__(name)
+        self.config = config
         self.stops = stops
         self.stop_hex_lookup: Dict[Hex, int] = {stop: index for index, stop in enumerate(stops)}
         self.capacity = capacity
@@ -186,18 +194,7 @@ class FixedRouteService(Service):
         return best_vehicle
 
     def get_fare(self, start_hex, end_hex, time=None) -> float:
-        # Simple flat fare for now
-        def _read_fixedroute_base_fare_from_config():
-            # Placeholder for reading from config
-            config_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "../../data/config.json"
-            )
-            with open(config_path, "r") as f:
-                config = json.load(f)
-            base = config.get("fixedroute_base_fare", 2.4)  # Default to 2.4 if not specified
-            return base
-
-        return _read_fixedroute_base_fare_from_config()
+        return self.config.fixedroute_base_fare
 
     def get_route(
         self,
@@ -314,3 +311,92 @@ class FixedRouteVehicle:
 
     def __repr__(self):
         return f"FixedRouteVehicle(service={self.service.name}, timetable={self.timetable})"
+
+
+def fixed_route_services_from_json(
+    json_path: str, network: NetworkModel
+) -> list[FixedRouteService]:
+    """
+    Load fixed-route services from JSON file and add them to the network.
+
+    Args:
+        json_path (str): Path to the JSON file containing fixed route services.
+        network (Network): The network to which the services will be added.
+    """
+    from datetime import datetime, timedelta
+
+    from .fixedroute import FixedRouteService
+
+    # Check if file exists
+    if not os.path.exists(json_path):
+        print(f"Fixed route services file not found: {json_path}. Skipping service loading.")
+        return
+
+    try:
+        with open(json_path, "r") as f:
+            data = json.load(f)
+
+        services = []
+
+        services_data = data.get("services", [])
+
+        # Default values for service parameters (used if not specified in JSON)
+        default_stopping_time_minutes = 1  # 1 minute at each stop
+        default_travel_time_minutes = 2  # 2 minutes per hexagon
+        default_bidirectional = True
+
+        # Create frequency period for the entire day (0:00 to 23:59)
+        # This covers all possible simulation hours
+        day_start = datetime(2024, 1, 1, 0, 0, 0)
+        day_end = datetime(2024, 1, 1, 23, 59, 59)
+
+        for service_info in services_data:
+            name = service_info.get("name", "Unknown Service")
+            stops_hex_ids = service_info.get("stops", [])
+            frequency_minutes = service_info.get("frequency", 10)  # Default 10 minutes
+            capacity = float(service_info.get("capacity", 50))  # Default 50
+
+            # Get stopping_time and travel_time from JSON (in minutes), use defaults if not provided
+            stopping_time_minutes = service_info.get("stopping_time", default_stopping_time_minutes)
+            travel_time_minutes = service_info.get("travel_time", default_travel_time_minutes)
+
+            # Convert minutes to timedelta
+            stopping_time = timedelta(minutes=stopping_time_minutes)
+            travel_time = timedelta(minutes=travel_time_minutes)
+
+            # Convert hex IDs to Hex objects
+            stops = [Hex(hex_id) for hex_id in stops_hex_ids]
+
+            if not stops:
+                print(f"Warning: Service '{name}' has no stops. Skipping.")
+                continue
+
+            # Create frequency period: (start_time, end_time, frequency)
+            frequency_timedelta = timedelta(minutes=frequency_minutes)
+            freq_period = [(day_start, day_end, frequency_timedelta)]
+
+            # Create FixedRouteService
+            fixed_route_service = FixedRouteService(
+                name=name,
+                stops=stops,
+                capacity=capacity,
+                stopping_time=stopping_time,
+                travel_time=travel_time,
+                network=network,
+                freq_period=freq_period,
+                bidirectional=default_bidirectional,
+            )
+
+            # Add to network
+            services.append(fixed_route_service)
+            print(
+                f"Loaded service: {name} with {len(stops)} stops, frequency {frequency_minutes} min, capacity {capacity}, stopping_time {stopping_time_minutes} min, travel_time {travel_time_minutes} min"
+            )
+
+        return services
+
+    except Exception as e:
+        print(f"Error loading fixed route services from {json_path}: {e}")
+        import traceback
+
+        traceback.print_exc()

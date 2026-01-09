@@ -4,7 +4,7 @@ from typing import List, OrderedDict, Tuple
 import networkx as nx
 from pydantic import BaseModel, ConfigDict
 
-from src.hex import Hex
+from .primitives.hex import Hex
 
 
 class HexModel(BaseModel):

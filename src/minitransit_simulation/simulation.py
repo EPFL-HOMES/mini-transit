@@ -6,9 +6,9 @@ import heapq
 from datetime import datetime
 from typing import List, Optional
 
-from src.actions import Action
-from src.demand import Demand
-from src.route import Route
+from .actions import Action
+from .demand import Demand
+from .primitives import Route
 
 
 class Event:

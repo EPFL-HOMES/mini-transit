@@ -2,7 +2,7 @@
 Action class representing a single action in a route.
 """
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from datetime import datetime, timedelta
 
 

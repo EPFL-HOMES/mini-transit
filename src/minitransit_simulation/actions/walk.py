@@ -2,14 +2,18 @@
 Walk class representing walking action in a route.
 """
 
-import json
-import os
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import networkx as nx
 
-from src.actions.action import Action
-from src.hex import Hex
+from ..primitives.hex import Hex
+from .action import Action
+
+
+@dataclass
+class WalkConfig:
+    walk_speed: float = 10.0  # Default walking speed in hexagons per hour
 
 
 class Walk(Action):
@@ -31,6 +35,7 @@ class Walk(Action):
         unit: int,
         graph: nx.Graph,
         walk_speed: float = None,
+        config: WalkConfig = WalkConfig(),
     ):
         """
         Initialize a Walk action.
@@ -40,16 +45,17 @@ class Walk(Action):
             start_hex (Hex): Starting hexagon.
             end_hex (Hex): Destination hexagon.
             walk_speed (float, optional): Walking speed in hexagons per hour.
-                                       If None, loads from config.json.
+                                       If None, gets from config.
         """
         super().__init__(start_time, end_time, unit=unit)
+        self.config = config
         self.start_hex = start_hex
         self.end_hex = end_hex
         self.graph = graph  # Store graph for distance calculation
         self.fare = 0.0  # Walking has no fare
 
         if walk_speed is None:
-            self.walk_speed = self._load_walk_speed_from_config()
+            self.walk_speed = self.config.walk_speed
         else:
             self.walk_speed = walk_speed
 
@@ -58,24 +64,6 @@ class Walk(Action):
         # yeeted for now: Calculate end time based on distance and speed if not provided
         # if not end_time:
         # self._calculate_end_time()
-
-    def _load_walk_speed_from_config(self) -> float:
-        """
-        Load walking speed from config.json.
-
-        Returns:
-            float: Walking speed in hexagons per hour.
-        """
-        try:
-            config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "config.json"
-            )
-            with open(config_path, "r") as f:
-                config = json.load(f)
-            return config.get("walk_speed", 10.0)
-        except (FileNotFoundError, KeyError, json.JSONDecodeError):
-            # Default fallback
-            return 10.0
 
     def _calculate_end_time(self):
         """
