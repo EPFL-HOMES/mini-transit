@@ -149,8 +149,7 @@ class APIServer:
             print(f"Saving to: {filepath}")
 
             # Save to file
-            with open(filepath, "w") as f:
-                json.dump(result, f, indent=2)
+            result.save_to_json(filepath)
 
             print(f"Simulation results saved successfully to: {filepath}")
 
