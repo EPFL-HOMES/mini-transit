@@ -450,9 +450,9 @@ def get_simulation_state(
                 print(f"DEBUG: Route {route_idx} - no action found for time {current_dt}")
 
             if current_action:
-                from src.actions.ride import Ride
-                from src.actions.wait import Wait
-                from src.actions.walk import Walk
+                from src.minitransit_simulation.actions.ride import Ride
+                from src.minitransit_simulation.actions.wait import Wait
+                from src.minitransit_simulation.actions.walk import Walk
 
                 try:
                     unit_info = {
@@ -754,9 +754,9 @@ def get_unit_route(
 
         # Build route steps with coordinates
         route_steps = []
-        from src.actions.ride import Ride
-        from src.actions.wait import Wait
-        from src.actions.walk import Walk
+        from src.minitransit_simulation.actions.ride import Ride
+        from src.minitransit_simulation.actions.wait import Wait
+        from src.minitransit_simulation.actions.walk import Walk
 
         for action_idx, action in enumerate(route.actions):
             step_info = {
