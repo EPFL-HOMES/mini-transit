@@ -2,11 +2,11 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from src.hex import Hex
-from src.network import Network
+from src.minitransit_simulation.network import Network
+from src.minitransit_simulation.primitives.hex import Hex
 
 # 🔁 CHANGE THIS to the actual module where FixedRouteService lives
-from src.services.fixedroute import FixedRouteService
+from src.minitransit_simulation.services.fixedroute import FixedRouteService
 
 
 class DummyNetwork(Network):

@@ -39,6 +39,15 @@ This will:
 * Install all dependencies defined in `pyproject.toml`
 * Generate / update the `poetry.lock` file
 
+This will NOT:
+
+* Install the dependencies necessary to run the test server, but only the ones that are necessary to run the `minitransit_simulation` package.
+
+To also install the dependencies necessary to run the test server, run :
+```bash
+poetry install --extras "test_interface"
+```
+
 ### 2.4 Adding new dependencies
 
 To add a new package:
@@ -53,6 +62,11 @@ This updates both `pyproject.toml` and `poetry.lock`.
 
 ## 3. Running the Backend Server
 
+**!!! Make sure to have installed the packages in the `test_interface` extra as such :**
+```bash
+poetry install --extras "test_interface"
+```
+
 The FastAPI app entrypoint is `main:app`.
 
 From the project root:
@@ -64,6 +78,7 @@ poetry run uvicorn main:app --reload
 * The server will start at `http://localhost:8000` by default. You can open this URL in browser for a visualization page.
 * `--reload` enables auto-reload on code changes (useful for development).
 
+---
 
 ## 4. API Documentation (Swagger UI)
 
@@ -97,4 +112,18 @@ To run the test suite:
 
 ```bash
 pytest
+```
+
+---
+
+## 7. Install the `minitransit_simulation` as a package in your project
+
+With poetry :
+```bash
+poetry add git+https://github.com/{REPO_NAME}.git
+```
+
+With uv :
+```bash
+uv pip install git+https://github.com/{REPO_NAME}.git
 ```

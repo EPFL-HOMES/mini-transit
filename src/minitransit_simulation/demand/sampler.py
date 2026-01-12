@@ -1,10 +1,10 @@
 import math
 import random
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Optional
 
-from src.demand import Demand
-from src.models import DemandInput, DemandModel
+from ..models import DemandInput, DemandModel
+from .demand import Demand
 
 
 class DemandSampler:
