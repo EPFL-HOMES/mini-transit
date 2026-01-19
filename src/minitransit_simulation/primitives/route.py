@@ -66,7 +66,8 @@ class Route:
         total_wait_time = self._calculate_total_wait_time().total_seconds() / 60.0  # in minutes
         total_cost = (
             -total_fare
-            - self.config.utility_function_alpha * (total_in_vehicle_time + total_access_time + total_wait_time)
+            - self.config.utility_function_alpha
+            * (total_in_vehicle_time + total_access_time + total_wait_time)
             - self.config.utility_function_phi * self.num_transfers
         )
 

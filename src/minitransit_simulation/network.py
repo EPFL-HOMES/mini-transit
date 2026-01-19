@@ -340,7 +340,9 @@ class Network:
         ondemanddockless_best_cost = -float("inf")
 
         # 1. Try direct walk
-        walk_time, walk_path = self.compute_walk_time(self.graph, start.hex_id, end.hex_id, walk_speed)
+        walk_time, walk_path = self.compute_walk_time(
+            self.graph, start.hex_id, end.hex_id, walk_speed
+        )
         if walk_time < float("inf"):
             walk_action = Walk(
                 start_time=demand_time,

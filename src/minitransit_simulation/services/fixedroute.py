@@ -313,7 +313,9 @@ class FixedRouteVehicle:
         return f"FixedRouteVehicle(service={self.service.name}, timetable={self.timetable})"
 
 
-def fixed_route_services_from_json(json_path: str, network: NetworkModel) -> list[FixedRouteService]:
+def fixed_route_services_from_json(
+    json_path: str, network: NetworkModel
+) -> list[FixedRouteService]:
     """
     Load fixed-route services from JSON file and add them to the network.
 
