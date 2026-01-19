@@ -6,12 +6,15 @@ Defines SimulationRunner, its configuration, and input/output data structures.
 import json
 from dataclasses import asdict, dataclass, field
 
-from .services.ondemand import OnDemandRouteServiceConfig
-
 from .demand import Demand, DemandSampler, demand_input_from_csv
 from .network import Network, NetworkConfig
 from .serialization import SerializedAction, serialize_action, serialize_action_dict
-from .services.fixedroute import FixedRouteServiceConfig, fixed_route_services_from_json
+from .services.fixedroute import (
+    FixedRouteServiceConfig,
+    fixed_route_services_from_dict,
+    fixed_route_services_from_json,
+)
+from .services.ondemand import OnDemandRouteServiceConfig
 from .simulation import Simulation
 
 
@@ -127,7 +130,13 @@ class SimulationRunner:
         self.city_name = None
         self.config = config
 
-    def init_area(self, geojson_path: str, demands_path: str, fixedroute_json_path: str):
+    def init_area(
+        self,
+        geojson_path: str,
+        demands_path: str,
+        fixedroute_json_path: str | None = None,
+        fixedroute_data: dict | None = None,
+    ):
         """
         Initialize the application for a given city.
 
@@ -138,7 +147,13 @@ class SimulationRunner:
         """
         self.network = Network(geojson_path, self.config)
         self.demand_inputs = demand_input_from_csv(demands_path)
+
+    def add_fixed_route_services_from_json(self, fixedroute_json_path: str):
         services = fixed_route_services_from_json(fixedroute_json_path, self.network)
+        self.network.services.extend(services)
+
+    def add_fixed_route_services_from_dict(self, fixedroute_data: dict):
+        services = fixed_route_services_from_dict(fixedroute_data, self.network)
         self.network.services.extend(services)
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:

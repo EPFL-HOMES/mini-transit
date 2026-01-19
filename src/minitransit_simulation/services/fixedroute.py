@@ -323,9 +323,6 @@ def fixed_route_services_from_json(
         json_path (str): Path to the JSON file containing fixed route services.
         network (Network): The network to which the services will be added.
     """
-    from datetime import datetime, timedelta
-
-    from .fixedroute import FixedRouteService
 
     # Check if file exists
     if not os.path.exists(json_path):
@@ -336,6 +333,28 @@ def fixed_route_services_from_json(
         with open(json_path, "r") as f:
             data = json.load(f)
 
+        return fixed_route_services_from_dict(data, network)
+
+    except Exception as e:
+        print(f"Error loading fixed route services from {json_path}: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+def fixed_route_services_from_dict(data: dict, network: NetworkModel) -> list[FixedRouteService]:
+    """
+    Load fixed-route services from a dictionary and add them to the network.
+
+    Args:
+        data (dict): Dictionary containing fixed route services data.
+        network (Network): The network to which the services will be added.
+    """
+    from datetime import datetime, timedelta
+
+    from .fixedroute import FixedRouteService
+
+    try:
         services = []
 
         services_data = data.get("services", [])
@@ -396,7 +415,7 @@ def fixed_route_services_from_json(
         return services
 
     except Exception as e:
-        print(f"Error loading fixed route services from {json_path}: {e}")
+        print(f"Error loading fixed route services from dict: {e}")
         import traceback
 
         traceback.print_exc()
