@@ -10,7 +10,7 @@ from .primitives.hex import Hex
 from .primitives.route import Route
 from .simulation_runner import SimulationRunner, SimulationRunnerConfig, SimulationRunnerInput, SimulationRunnerResult
 from .serialization import BaseSerializedAction, RideSerializedAction, WalkSerializedAction, WaitSerializedAction, serialize_action, serialize_action_dict
-from .services.fixedroute import FixedRouteService
+from .services.fixedroute import FixedRouteService, FixedRouteServiceConfig, fixed_route_services_from_json, fixed_route_services_from_dict
 from .services.ondemand import OnDemandRouteService, OnDemandRouteServiceConfig, OnDemandVehicle, OnDemandRouteServiceDocked, OnDemandRouteServiceDockless
 
 __all__ = [
@@ -35,6 +35,9 @@ __all__ = [
     "serialize_action",
     "serialize_action_dict"
     "FixedRouteService",
+    "FixedRouteServiceConfig",
+    "fixed_route_services_from_json",
+    "fixed_route_services_from_dict",
     "OnDemandRouteService",
     "OnDemandRouteServiceConfig",
     "OnDemandVehicle",

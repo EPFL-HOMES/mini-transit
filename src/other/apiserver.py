@@ -66,8 +66,8 @@ class APIServer:
         self.runner.init_area(
             geojson_path=geojson_path,
             demands_path=demands_path,
-            fixedroute_json_path=fixed_route_services_path,
         )
+        self.runner.add_fixed_route_services_from_json(fixed_route_services_path)
 
         print(
             f"Initialized {city_name}: {len(self.runner.demand_inputs)} input demands, {len(self.runner.network.graph.nodes())} hexagons, {len(self.runner.network.services)} services"
