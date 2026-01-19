@@ -196,8 +196,13 @@ def init_simulation(city_name: str):
 def run_simulation(input_data: Dict[str, Any] | None = None):
     """Run the simulation with given parameters"""
     try:
+        from src.minitransit_simulation.simulation_runner import SimulationRunnerInput
+        
         input_payload = input_data or {}
-        result = api_server.run_simulation(input_payload)
+        # Convert dictionary to SimulationRunnerInput dataclass
+        hour = input_payload.get("hour", 8)
+        simulation_input = SimulationRunnerInput(hour=hour)
+        result = api_server.run_simulation(simulation_input)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Simulation failed: {e}") from e
@@ -222,7 +227,7 @@ def get_visualization_data(city_name: str = Query(..., description="City name"))
     if city_name not in CITIES:
         raise HTTPException(status_code=404, detail="City not found")
 
-    if api_server.network is None:
+    if api_server.runner.network is None:
         raise HTTPException(status_code=400, detail="Simulation not initialized")
 
     try:
@@ -239,7 +244,7 @@ def get_visualization_data(city_name: str = Query(..., description="City name"))
 
         # Get fixed route services
         services_data = []
-        for i, service in enumerate(api_server.network.services):
+        for i, service in enumerate(api_server.runner.network.services):
             from src.minitransit_simulation.services.fixedroute import FixedRouteService
 
             if isinstance(service, FixedRouteService):
@@ -306,7 +311,7 @@ def get_simulation_state(
     print(
         f"DEBUG: get_simulation_state called with city_name={city_name}, current_time={current_time}"
     )
-    print(f"DEBUG: api_server.network is None: {api_server.network is None}")
+    print(f"DEBUG: api_server.runner.network is None: {api_server.runner.network is None}")
     print(
         f"DEBUG: api_server.last_simulation_result is None: {api_server.last_simulation_result is None}"
     )
@@ -315,7 +320,7 @@ def get_simulation_state(
         print(f"DEBUG: City {city_name} not found in CITIES")
         raise HTTPException(status_code=404, detail="City not found")
 
-    if api_server.network is None:
+    if api_server.runner.network is None:
         print("DEBUG: Network not initialized")
         raise HTTPException(status_code=400, detail="Simulation not initialized")
 
@@ -614,7 +619,7 @@ def get_simulation_state(
                         unit_info["service_id"] = None
                         # Find service ID
                         if hasattr(current_action, "service") and current_action.service:
-                            for i, service in enumerate(api_server.network.services):
+                            for i, service in enumerate(api_server.runner.network.services):
                                 if service == current_action.service:
                                     unit_info["service_id"] = i
                                     break
@@ -726,7 +731,7 @@ def get_unit_route(
     if city_name not in CITIES:
         raise HTTPException(status_code=404, detail="City not found")
 
-    if api_server.network is None:
+    if api_server.runner.network is None:
         raise HTTPException(status_code=400, detail="Simulation not initialized")
 
     if not api_server.last_simulation_result:
@@ -802,7 +807,7 @@ def get_unit_route(
 
                     # Add service info
                     if hasattr(action, "service") and action.service:
-                        for i, service in enumerate(api_server.network.services):
+                        for i, service in enumerate(api_server.runner.network.services):
                             if service == action.service:
                                 step_info["service_id"] = i
                                 step_info["service_name"] = service.name

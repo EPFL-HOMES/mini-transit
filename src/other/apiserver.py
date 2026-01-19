@@ -61,16 +61,12 @@ class APIServer:
         # Set up file paths
         geojson_path = f"data/{city_name}/{city_name}.geojson"
         demands_path = f"data/{city_name}/{city_name}_time_dependent_demands.csv"
-        fixed_route_services_path = f"data/{city_name}/fixed_route_services.json"
+        services_path = f"data/{city_name}/services.json"
 
         self.runner.init_area(
             geojson_path=geojson_path,
             demands_path=demands_path,
-        )
-        self.runner.add_fixed_route_services_from_json(fixed_route_services_path)
-
-        print(
-            f"Initialized {city_name}: {len(self.runner.demand_inputs)} input demands, {len(self.runner.network.graph.nodes())} hexagons, {len(self.runner.network.services)} services"
+            services_json_path=services_path,
         )
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
@@ -114,7 +110,11 @@ class APIServer:
         except Exception as e:
             self.last_simulation_result = None
 
-            return {"status": "error", "message": f"Simulation failed: {str(e)}", "routes": []}
+            return SimulationRunnerResult(
+                status="error",
+                message=f"Simulation failed: {str(e)}",
+                routes=[],
+            )
 
     def _save_simulation_results(self, result: SimulationRunnerResult):
         """

@@ -6,15 +6,13 @@ Defines SimulationRunner, its configuration, and input/output data structures.
 import json
 from dataclasses import asdict, dataclass, field
 
+from .services.ondemand import OnDemandRouteServiceConfig
+
 from .demand import Demand, DemandSampler, demand_input_from_csv
 from .network import Network, NetworkConfig
 from .serialization import SerializedAction, serialize_action, serialize_action_dict
-from .services.fixedroute import (
-    FixedRouteServiceConfig,
-    fixed_route_services_from_dict,
-    fixed_route_services_from_json,
-)
-from .services.ondemand import OnDemandRouteServiceConfig
+from .services.fixedroute import FixedRouteServiceConfig
+from .services.services_loader import load_services_from_json
 from .simulation import Simulation
 
 
@@ -134,6 +132,7 @@ class SimulationRunner:
         self,
         geojson_path: str,
         demands_path: str,
+        services_json_path: str,
     ):
         """
         Initialize the application for a given city.
@@ -141,17 +140,11 @@ class SimulationRunner:
         Args:
             geojson_path (str): Path to the GeoJSON file for the city's network.
             demands_path (str): Path to the CSV file containing time-dependent demands.
-            fixedroute_json_path (str): Path to the JSON file containing fixed route services.
+            services_json_path (str): Path to the JSON file containing both fixed route and on-demand services.
         """
         self.network = Network(geojson_path, self.config)
         self.demand_inputs = demand_input_from_csv(demands_path)
-
-    def add_fixed_route_services_from_json(self, fixedroute_json_path: str):
-        services = fixed_route_services_from_json(fixedroute_json_path, self.network)
-        self.network.services.extend(services)
-
-    def add_fixed_route_services_from_dict(self, fixedroute_data: dict):
-        services = fixed_route_services_from_dict(fixedroute_data, self.network)
+        services = load_services_from_json(services_json_path, self.network)
         self.network.services.extend(services)
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
@@ -272,6 +265,13 @@ class SimulationRunner:
 
             simulation_end_time = datetime.now()
             simulation_duration = (simulation_end_time - simulation_start_time).total_seconds()
+
+            # Calculate percentage of time spent in get_optimal_route
+            optimal_route_time = simulation.total_optimal_route_time
+            optimal_route_percentage = (optimal_route_time / simulation_duration * 100) if simulation_duration > 0 else 0
+            print(f"\nTime analysis for simulation (hour {simulation_hour}):")
+            print(f"  Total simulation time: {simulation_duration:.3f} seconds")
+            print(f"  Time in get_optimal_route: {optimal_route_time:.3f} seconds ({optimal_route_percentage:.1f}%)")
 
             # Convert routes to JSON-serializable format
             routes_data = []
