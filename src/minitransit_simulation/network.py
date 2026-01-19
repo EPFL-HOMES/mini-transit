@@ -8,6 +8,7 @@ from datetime import timedelta
 import networkx as nx
 import numpy as np
 
+from .actions.ondemand_ride import OnDemandRide
 from .actions.ride import Ride
 from .actions.walk import Walk
 from .primitives.route import RouteConfig
@@ -224,7 +225,7 @@ class Network:
 
         # Step 1: walk from origin to the start service’s nearest stop
         s_first = chain[0]
-        s1_start, s1_walk_time = self.find_closest_stop(graph, start, s_first, walk_speed)
+        s1_start, s1_walk_time = self.find_closest_stop(graph, start.hex_id, s_first, walk_speed)
         if s1_start is None:
             raise Exception("No feasible access stop for first service")
 
@@ -284,7 +285,7 @@ class Network:
 
         # Step 3: final ride on last service to closest end stop
         s_last = chain[-1]
-        s2_end, s2_walk_time = self.find_closest_stop(graph, end, s_last, walk_speed)
+        s2_end, s2_walk_time = self.find_closest_stop(graph, end.hex_id, s_last, walk_speed)
         if s2_end is None:
             raise Exception("No feasible end stop for last service")
 
@@ -329,15 +330,15 @@ class Network:
         demand_time = demand.time
 
         walk_best_route = None
-        walk_best_cost = -float("inf")
+        walk_best_cost = -float("inf")  # total_cost is utility (higher is better)
         walk_fixed_best_route = None
-        walk_fixed_best_cost = -float("inf")
+        walk_fixed_best_cost = -float("inf")  # total_cost is utility (higher is better)
         # ondemand_fixed_best_route = None
         # ondemand_fixed_best_cost = float('inf')
         ondemanddocked_best_route = None
         ondemanddockless_best_route = None
-        ondemanddocked_best_cost = -float("inf")
-        ondemanddockless_best_cost = -float("inf")
+        ondemanddocked_best_cost = -float("inf")  # total_cost is utility (higher is better)
+        ondemanddockless_best_cost = -float("inf")  # total_cost is utility (higher is better)
 
         # 1. Try direct walk
         walk_time, walk_path = self.compute_walk_time(self.graph, start.hex_id, end.hex_id, walk_speed)
@@ -359,7 +360,7 @@ class Network:
             walk_route = None
 
         walk_best_route = walk_route
-        walk_best_cost = walk_route.total_cost if walk_route else float("inf")
+        walk_best_cost = walk_route.total_cost if walk_route else -float("inf")  # total_cost is utility (higher is better)
 
         # Get all different route services
         fixed_services = [s for s in self.services if isinstance(s, FixedRouteService)]
@@ -375,10 +376,10 @@ class Network:
             try:
                 # Find closest stops to start and end
                 start_stop, start_walk_time = self.find_closest_stop(
-                    self.graph, start, service, walk_speed
+                    self.graph, start.hex_id, service, walk_speed
                 )
                 end_stop, end_walk_time = self.find_closest_stop(
-                    self.graph, end, service, walk_speed
+                    self.graph, end.hex_id, service, walk_speed
                 )
 
                 if start_stop is None or end_stop is None:
@@ -424,7 +425,7 @@ class Network:
                         config=self.config,
                     )
 
-                    if route.total_cost < walk_fixed_best_cost:
+                    if route.total_cost > walk_fixed_best_cost:  # total_cost is utility (higher is better)
                         walk_fixed_best_cost = route.total_cost
                         walk_fixed_best_route = route
                 except Exception:
@@ -442,10 +443,10 @@ class Network:
                 try:
                     # Find closest stops
                     start_stop1, start_walk_time = self.find_closest_stop(
-                        self.graph, start, service1, walk_speed
+                        self.graph, start.hex_id, service1, walk_speed
                     )
                     end_stop2, end_walk_time = self.find_closest_stop(
-                        self.graph, end, service2, walk_speed
+                        self.graph, end.hex_id, service2, walk_speed
                     )
 
                     if start_stop1 is None or end_stop2 is None:
@@ -504,7 +505,7 @@ class Network:
                                     config=self.config,
                                 )
 
-                                if route.total_cost < walk_fixed_best_cost:
+                                if route.total_cost > walk_fixed_best_cost:  # total_cost is utility (higher is better)
                                     walk_fixed_best_cost = route.total_cost
                                     walk_fixed_best_route = route
                             except Exception:
@@ -527,7 +528,7 @@ class Network:
                                     walk_speed=walk_speed,
                                 )
 
-                                if route.total_cost < walk_fixed_best_cost:
+                                if route.total_cost > walk_fixed_best_cost:  # total_cost is utility (higher is better)
                                     walk_fixed_best_cost = route.total_cost
                                     walk_fixed_best_route = route
 
@@ -540,13 +541,15 @@ class Network:
             for service in ondemandservices_docked:
                 try:
                     best_start_dock, vehicle_walk_time = self.find_closest_ondemand_dock(
-                        self.graph, start, service, walk_speed, radius=2
+                        self.graph, start.hex_id, service, walk_speed, radius=2
                     )
                     if best_start_dock is None:  # aka literally no docks at all within the radius
                         continue
                     best_end_dock, off_vehicle_walk_time = self.find_closest_ondemand_dock(
-                        self.graph, end, service, walk_speed, radius=2
+                        self.graph, end.hex_id, service, walk_speed, radius=2
                     )
+                    if best_end_dock is None:  # No dock at destination
+                        continue
                     # Walk to vehicle
                     walk_to_vehicle = Walk(
                         start_time=demand_time,
@@ -554,18 +557,17 @@ class Network:
                         start_hex=start,
                         end_hex=best_start_dock.location,
                         unit=demand.unit,
+                        graph=self.graph,
                         walk_speed=walk_speed,
                     )
-                    vehicle, _ = best_start_dock.take_vehicle()
-                    if vehicle is None:  # no available vehicle at the dock
-                        # try to find another route without docked OnDemand service
-                        demand.time = walk_to_vehicle.end_time
-                        return self.get_optimal_route(demand, second_try=True)
+                    vehicle = best_start_dock.take_vehicle()
+                    # Note: take_vehicle() raises Exception if no vehicle available,
+                    # which is caught by the outer try-except, so we don't need to check for None here
                     # below case for when there IS an available vehicle
-                    # Ride with vehicle
+                    # Ride with vehicle (using OnDemandRide for on-demand services)
                     drive_time = service.compute_drive_time(best_start_dock.location, end)
                     arrival_time = walk_to_vehicle.end_time + drive_time
-                    ride_action = Ride(
+                    ride_action = OnDemandRide(
                         start_time=walk_to_vehicle.end_time,
                         end_time=arrival_time,
                         start_hex=best_start_dock.location,
@@ -580,6 +582,7 @@ class Network:
                         start_hex=best_end_dock.location,
                         end_hex=end,
                         unit=demand.unit,
+                        graph=self.graph,
                         walk_speed=walk_speed,
                     )
                     ondemand_route = Route(
@@ -588,15 +591,16 @@ class Network:
                         transfers=0,
                         config=self.config,
                     )
-                    if ondemand_route.total_cost < ondemanddocked_best_cost:
+                    if ondemand_route.total_cost > ondemanddocked_best_cost:  # total_cost is utility (higher is better)
                         ondemanddocked_best_cost = ondemand_route.total_cost
                         ondemanddocked_best_route = ondemand_route
                 except Exception:
+                    # Silently continue if on-demand route cannot be created
                     continue
 
         for service in ondemandservices_dockless:
             best_vehicle, vehicle_walk_time = self.find_closest_ondemand_vehicle(
-                self.graph, start, service, walk_speed, demand_time, radius=2
+                self.graph, start.hex_id, service, walk_speed, demand_time, radius=2
             )
             if best_vehicle is None:  # aka literally no vehicles at all within the radius
                 continue
@@ -608,12 +612,13 @@ class Network:
                     start_hex=start,
                     end_hex=best_vehicle.current_location,
                     unit=demand.unit,
+                    graph=self.graph,
                     walk_speed=walk_speed,
                 )
-                # Ride with vehicle
+                # Ride with vehicle (using OnDemandRide for on-demand services)
                 drive_time = service.compute_drive_time(best_vehicle.current_location, end)
                 arrival_time = walk_to_vehicle.end_time + drive_time
-                ride_action = Ride(
+                ride_action = OnDemandRide(
                     start_time=walk_to_vehicle.end_time,
                     end_time=arrival_time,
                     start_hex=best_vehicle.current_location,
@@ -628,7 +633,7 @@ class Network:
                     transfers=0,
                     config=self.config,
                 )
-                if ondemand_route.total_cost < ondemanddockless_best_cost:
+                if ondemand_route.total_cost > ondemanddockless_best_cost:  # total_cost is utility (higher is better)
                     ondemanddockless_best_cost = ondemand_route.total_cost
                     ondemanddockless_best_route = ondemand_route
             except Exception:
@@ -638,15 +643,20 @@ class Network:
         # foolproofing for None routes
         choices = [walk_best_route]
         logits = [walk_best_cost]
+        route_types = ["Walk"]
         if walk_fixed_best_route is not None:
             logits.append(walk_fixed_best_cost)
             choices.append(walk_fixed_best_route)
+            route_types.append("FixedRoute")
         if ondemanddocked_best_route is not None:
             logits.append(ondemanddocked_best_cost)
             choices.append(ondemanddocked_best_route)
+            route_types.append("OnDemandDocked")
         if ondemanddockless_best_route is not None:
             logits.append(ondemanddockless_best_cost)
             choices.append(ondemanddockless_best_route)
+            route_types.append("OnDemandDockless")
+        
         exp_logits = np.exp(np.array(logits))
         probabilities = exp_logits / np.sum(exp_logits)
 

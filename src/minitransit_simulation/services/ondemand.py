@@ -223,6 +223,7 @@ class OnDemandVehicle:
         self.vehicle_id = vehicle_id
         self.current_location = current_location
         self.capacity = capacity
+        self.current_load: float = 0.0  # Current number of units on board
         self.available_time = datetime.min  # Initially available
 
     def is_available(self, request_time: datetime) -> bool:
@@ -235,3 +236,29 @@ class OnDemandVehicle:
             bool: True if the vehicle is available, False otherwise.
         """
         return request_time >= self.available_time
+
+    def load_passengers(self, unit: float):
+        """
+        Load passengers onto the vehicle.
+
+        Args:
+            unit (float): Number of units to load.
+        Raises:
+            ValueError: If loading would exceed vehicle capacity.
+        """
+        if self.current_load + unit > self.capacity:
+            raise ValueError("Exceeding vehicle capacity")
+        self.current_load += unit
+
+    def unload_passengers(self, unit: float):
+        """
+        Unload passengers from the vehicle.
+
+        Args:
+            unit (float): Number of units to unload.
+        Raises:
+            ValueError: If unloading would result in negative load.
+        """
+        if self.current_load - unit < 0:
+            raise ValueError("Cannot unload more passengers than currently loaded")
+        self.current_load -= unit

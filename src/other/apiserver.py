@@ -61,17 +61,14 @@ class APIServer:
         # Set up file paths
         geojson_path = f"data/{city_name}/{city_name}.geojson"
         demands_path = f"data/{city_name}/{city_name}_time_dependent_demands.csv"
-        fixed_route_services_path = f"data/{city_name}/fixed_route_services.json"
+        services_path = f"data/{city_name}/services.json"
 
         self.runner.init_area(
             geojson_path=geojson_path,
             demands_path=demands_path,
-            fixedroute_json_path=fixed_route_services_path,
+            services_json_path=services_path,
         )
 
-        print(
-            f"Initialized {city_name}: {len(self.runner.demand_inputs)} input demands, {len(self.runner.network.graph.nodes())} hexagons, {len(self.runner.network.services)} services"
-        )
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
         """
@@ -93,13 +90,6 @@ class APIServer:
                     "routes": result.routes,
                     "simulation_hour": result.simulation_hour,
                 }
-
-                print(
-                    f"DEBUG: last_simulation_result stored: {self.last_simulation_result is not None}"
-                )
-                print(
-                    f"DEBUG: last_simulation_result has routes: {len(self.last_simulation_result['routes']) if self.last_simulation_result else 0}"
-                )
 
                 # Save simulation results to file (this can fail without affecting visualization)
                 try:
@@ -129,9 +119,6 @@ class APIServer:
             from datetime import datetime
 
             city_name = self.city_name or "Unknown"
-            print(
-                f"Starting to save simulation results for {city_name} hour {result.simulation_hour}"
-            )
 
             # Create results directory if it doesn't exist
             results_dir = os.path.join(
@@ -139,19 +126,15 @@ class APIServer:
                 "data",
                 "simulation_results",
             )
-            print(f"Results directory: {results_dir}")
             os.makedirs(results_dir, exist_ok=True)
 
             # Generate filename with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{city_name}_hour{result.simulation_hour}_{timestamp}.json"
             filepath = os.path.join(results_dir, filename)
-            print(f"Saving to: {filepath}")
 
             # Save to file
             result.save_to_json(filepath)
-
-            print(f"Simulation results saved successfully to: {filepath}")
 
         except Exception as e:
             print(f"Error saving simulation results: {e}")

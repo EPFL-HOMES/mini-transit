@@ -3,6 +3,7 @@ Event-driven simulation system using priority queue.
 """
 
 import heapq
+import time
 from datetime import datetime
 from typing import List, Optional
 
@@ -135,6 +136,7 @@ class Simulation:
         self.network = network
         self.event_queue = []  # Priority queue (min-heap)
         self.completed_routes = []  # Routes that have been completed
+        self.total_optimal_route_time = 0.0  # Track time spent in get_optimal_route
 
     def add_demand(self, demand: Demand):
         """
@@ -144,8 +146,10 @@ class Simulation:
             demand: The demand to add to the simulation.
         """
         # Find optimal route for this demand
-        print(f"Finding optimal route for demand: {demand}")
+        start_time = time.perf_counter()
         route = self.network.get_optimal_route(demand)
+        end_time = time.perf_counter()
+        self.total_optimal_route_time += (end_time - start_time)
 
         if route is None or not route.actions:
             # No valid route found, skip this demand
@@ -183,12 +187,46 @@ class Simulation:
                 # Check if this is a Ride action that needs capacity checking
                 from src.minitransit_simulation.actions.ride import Ride
 
-                if isinstance(current_action, Ride) and current_action.vehicle is not None:
+                from .actions.ondemand_ride import OnDemandRide
+
+                if isinstance(current_action, (Ride, OnDemandRide)) and current_action.vehicle is not None:
                     # The event end_time is when the ride ends, so we need to unload passengers
                     vehicle = current_action.vehicle
 
-                    # Unload passengers when ride ends
-                    vehicle.unload_passengers(current_action.unit)
+                    # Unload passengers when ride ends (only for Ride, not OnDemandRide)
+                    # OnDemandRide doesn't track capacity during ride, so we don't need to unload
+                    if isinstance(current_action, Ride):
+                        vehicle.unload_passengers(current_action.unit)
+                    
+                    # For OnDemandRide with docked service, return vehicle to docking station
+                    if isinstance(current_action, OnDemandRide):
+                        from src.minitransit_simulation.services.ondemand import (
+                            OnDemandRouteServiceDocked,
+                        )
+                        if isinstance(current_action.service, OnDemandRouteServiceDocked):
+                            # Find docking station at end location
+                            end_location = current_action.end_hex
+                            service = current_action.service
+                            
+                            # Find the docking station at this location
+                            docking_station = None
+                            for dock in service.docking_stations:
+                                if dock.location.hex_id == end_location.hex_id:
+                                    docking_station = dock
+                                    break
+                            
+                            if docking_station is not None:
+                                # Return vehicle to docking station
+                                try:
+                                    docking_station.dock_vehicle(vehicle)
+                                    # Update vehicle's location to match docking station
+                                    vehicle.current_location = docking_station.location
+                                    # Make vehicle available immediately (it's at the dock now)
+                                    vehicle.available_time = current_event.end_time
+                                except Exception:
+                                    # Docking station is full - vehicle remains at location but not docked
+                                    # In real system, might need to handle this differently
+                                    pass
 
                     # Complete the ride action and move to next
                     next_event = current_event.get_next_event()
@@ -200,6 +238,8 @@ class Simulation:
                         current_event.actions[1] if len(current_event.actions) > 1 else None
                     )
 
+                    # OnDemandRide actions don't need capacity checks during boarding
+                    # because the vehicle is already taken at the dock when the route is created
                     if isinstance(next_action, Ride) and next_action.vehicle is not None:
                         # This event is about to start a Ride - need to check capacity at boarding time
                         # Group all events that want to board the same vehicle at the same time
@@ -221,6 +261,7 @@ class Simulation:
 
                             if (
                                 isinstance(peek_next_action, Ride)
+                                and not isinstance(peek_next_action, OnDemandRide)
                                 and peek_next_action.vehicle == vehicle
                                 and peek_next_action.start_time == boarding_time
                             ):
@@ -290,6 +331,18 @@ class Simulation:
         end_hex = ride_action.end_hex
         unit = ride_action.unit
         current_time = event.actions[0].end_time if event.actions else ride_action.start_time
+
+        # Only fixed-route services have stop_hex_lookup and timetable
+        # For on-demand services, if capacity is exceeded, we can't find another vehicle
+        # (they don't follow schedules), so return None to skip this demand
+        from src.minitransit_simulation.services.ondemand import (
+            OnDemandRouteServiceDocked,
+            OnDemandRouteServiceDockless,
+        )
+        if isinstance(service, (OnDemandRouteServiceDocked, OnDemandRouteServiceDockless)):
+            # On-demand services don't have multiple scheduled vehicles
+            # If capacity is exceeded, we can't find another vehicle
+            return None
 
         # Find next vehicle after the current one
         start_index = service.stop_hex_lookup[start_hex]

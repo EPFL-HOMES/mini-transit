@@ -11,7 +11,8 @@ from src.minitransit_simulation.services.ondemand import OnDemandRouteServiceCon
 from .demand import Demand, DemandSampler, demand_input_from_csv
 from .network import Network, NetworkConfig
 from .serialization import SerializedAction, serialize_action, serialize_action_dict
-from .services.fixedroute import FixedRouteServiceConfig, fixed_route_services_from_json
+from .services.fixedroute import FixedRouteServiceConfig
+from .services.services_loader import load_services_from_json
 from .simulation import Simulation
 
 
@@ -32,10 +33,8 @@ class SimulationRunnerConfig(NetworkConfig, FixedRouteServiceConfig, OnDemandRou
             "SimulationRunnerConfig": Configuration object with default values if file not found.
         """
         try:
-            print(f"DEBUG: Loading config from: {file_path}")
             with open(file_path, "r") as f:
                 config = json.load(f)
-            print(f"DEBUG: Config loaded successfully: {config}")
             return cls(**config)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Warning: Could not load config from {file_path}: {e}. Using defaults.")
@@ -99,12 +98,9 @@ class SimulationRunnerResult:
         try:
             import traceback
 
-            print(f"Saving simulation results in {path}")
             # Save to file
             with open(path, "w") as f:
                 json.dump(asdict(self), f, indent=2)
-
-            print(f"Simulation results saved successfully to: {path}")
 
         except Exception as e:
             print(f"Error saving simulation results: {e}")
@@ -127,18 +123,18 @@ class SimulationRunner:
         self.city_name = None
         self.config = config
 
-    def init_area(self, geojson_path: str, demands_path: str, fixedroute_json_path: str):
+    def init_area(self, geojson_path: str, demands_path: str, services_json_path: str):
         """
         Initialize the application for a given city.
 
         Args:
             geojson_path (str): Path to the GeoJSON file for the city's network.
             demands_path (str): Path to the CSV file containing time-dependent demands.
-            fixedroute_json_path (str): Path to the JSON file containing fixed route services.
+            services_json_path (str): Path to the JSON file containing both fixed route and on-demand services.
         """
         self.network = Network(geojson_path, self.config)
         self.demand_inputs = demand_input_from_csv(demands_path)
-        services = fixed_route_services_from_json(fixedroute_json_path, self.network)
+        services = load_services_from_json(services_json_path, self.network)
         self.network.services.extend(services)
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
@@ -167,8 +163,6 @@ class SimulationRunner:
             )  # Default to hour 8 if not specified
 
             use_sampling = self.config.sampling if hasattr(self.config, "sampling") else True
-            print(f"DEBUG: Sampling flag from config: {use_sampling} (type: {type(use_sampling)})")
-            print(f"DEBUG: Full config: {self.config}")
 
             # Clear previous routes
             self.network.clear_routes()
@@ -193,20 +187,13 @@ class SimulationRunner:
 
             # Process demands based on sampling flag
             if use_sampling:
-                print(
-                    f"DEBUG: Using sampling mode. Input demands count: {len(filtered_demand_inputs)}"
-                )
                 # Sample demands from input demands using DemandSampler
                 unit_sizes = self.config.unit_sizes or [5]
                 seed = (
                     self.config.seed if hasattr(self.config, "seed") else None
                 )  # None means no seed (random)
-                print(f"DEBUG: Sampler config - unit_sizes: {unit_sizes}, seed: {seed}")
                 sampler = DemandSampler(unit_sizes=unit_sizes, seed=seed)
                 processed_demands = sampler.sample_hourly_demand(filtered_demand_inputs)
-                print(
-                    f"DEBUG: Sampled {len(processed_demands)} demands from {len(filtered_demand_inputs)} input demands"
-                )
 
                 if not processed_demands:
                     return SimulationRunnerResult(
@@ -217,7 +204,6 @@ class SimulationRunner:
                         routes_generated=0,
                     )
             else:
-                print(f"DEBUG: Using direct conversion mode (no sampling)")
                 # Convert DemandInput to Demand objects directly (old behavior)
                 # One Demand per DemandInput, using unit value as-is
                 processed_demands = []
@@ -251,6 +237,7 @@ class SimulationRunner:
             simulation = Simulation(self.network)
 
             # Add all processed demands to the simulation
+            print(f"Adding {len(processed_demands)} demands to the simulation")
             for demand in processed_demands:
                 simulation.add_demand(demand)
 
@@ -259,6 +246,13 @@ class SimulationRunner:
 
             simulation_end_time = datetime.now()
             simulation_duration = (simulation_end_time - simulation_start_time).total_seconds()
+
+            # Calculate percentage of time spent in get_optimal_route
+            optimal_route_time = simulation.total_optimal_route_time
+            optimal_route_percentage = (optimal_route_time / simulation_duration * 100) if simulation_duration > 0 else 0
+            print(f"\nTime analysis for simulation (hour {simulation_hour}):")
+            print(f"  Total simulation time: {simulation_duration:.3f} seconds")
+            print(f"  Time in get_optimal_route: {optimal_route_time:.3f} seconds ({optimal_route_percentage:.1f}%)")
 
             # Convert routes to JSON-serializable format
             routes_data = []
