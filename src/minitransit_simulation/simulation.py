@@ -100,7 +100,7 @@ class Event:
             return self.end_time < other.end_time
 
         # If end times are the same, prioritize Ride actions
-        from src.minitransit_simulation.actions.ride import Ride
+        from .actions.ride import Ride
 
         self_has_ride = self.actions and isinstance(self.actions[0], Ride)
         other_has_ride = other.actions and isinstance(other.actions[0], Ride)
@@ -181,7 +181,7 @@ class Simulation:
                 current_action = current_event.get_current_action()
 
                 # Check if this is a Ride action that needs capacity checking
-                from src.minitransit_simulation.actions.ride import Ride
+                from .actions.ride import Ride
 
                 if isinstance(current_action, Ride) and current_action.vehicle is not None:
                     # The event end_time is when the ride ends, so we need to unload passengers
@@ -273,9 +273,9 @@ class Simulation:
         """
         from datetime import timedelta
 
-        from src.minitransit_simulation.actions.ride import Ride
-        from src.minitransit_simulation.actions.wait import Wait
-        from src.minitransit_simulation.actions.walk import Walk
+        from .actions.ride import Ride
+        from .actions.wait import Wait
+        from .actions.walk import Walk
 
         # The next action (index 1) is the Ride we need to update
         if len(event.actions) < 2:
