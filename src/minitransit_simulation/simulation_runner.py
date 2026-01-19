@@ -134,8 +134,6 @@ class SimulationRunner:
         self,
         geojson_path: str,
         demands_path: str,
-        fixedroute_json_path: str | None = None,
-        fixedroute_data: dict | None = None,
     ):
         """
         Initialize the application for a given city.
