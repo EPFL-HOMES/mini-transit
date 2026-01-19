@@ -6,7 +6,7 @@ Defines SimulationRunner, its configuration, and input/output data structures.
 import json
 from dataclasses import asdict, dataclass, field
 
-from src.minitransit_simulation.services.ondemand import OnDemandRouteServiceConfig
+from .services.ondemand import OnDemandRouteServiceConfig
 
 from .demand import Demand, DemandSampler, demand_input_from_csv
 from .network import Network, NetworkConfig
