@@ -146,6 +146,8 @@ class SimulationRunner:
         self.demand_inputs = demand_input_from_csv(demands_path)
         services = load_services_from_json(services_json_path, self.network)
         self.network.services.extend(services)
+        # Build fixed route graph after loading services
+        self.network.build_fixedroute_graph(self.network.services)
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
         """

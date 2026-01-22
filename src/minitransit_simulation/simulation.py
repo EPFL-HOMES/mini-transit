@@ -344,6 +344,8 @@ class Simulation:
         start_index = service.stop_hex_lookup[start_hex]
         end_index = service.stop_hex_lookup[end_hex]
 
+        #TODO: DO WE handle the edge case where multiple services share same route and a demand can choose the next approaching vehicle from ANOTHER service?
+        # probably extreme edge case to worry about now
         # Try to find next departure after current vehicle's departure
         try:
             # Get departure time of current vehicle
