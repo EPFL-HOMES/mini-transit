@@ -1,5 +1,5 @@
 {
-    "walk_speed": 10.0,
+    "walk_speed": 12.0,
     "unit_sizes": [5, 10, 15],
     "seed": null,
     "sampling": true,

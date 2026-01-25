@@ -5,6 +5,8 @@ Network class representing the transportation network of a city.
 from dataclasses import dataclass
 from datetime import timedelta
 
+import traceback
+
 import networkx as nx
 from collections import defaultdict
 import numpy as np
@@ -55,6 +57,19 @@ class Network:
         self.fixedroute_graph = None  # Will be built later
         self.services = []  # Will be populated later
         self.routes_taken = []  # Will be populated during simulation
+        self.fixedroute_lookup = {}  # Mapping from route name to FixedRouteService
+        self.component_distance_table = None  # Will be built later
+        self.path_lookup = defaultdict(dict)  # (from_hex_id, to_hex_id) -> (path, time)
+        #self.construct_path_lookup()
+
+    #def construct_path_lookup(self):
+        """
+        Constructs an empty lookup table for all the obtained fastest path in the format (List, time (in float)) between any two nodes in self.graph. 
+        """
+        #for u in self.graph.nodes:
+            #for v in self.graph.nodes:
+                #self.path_lookup[u][v] = (None, float("inf"))
+        
 
     def get_distance(self, start_hex, end_hex) -> int:
         """
@@ -85,7 +100,6 @@ class Network:
             return float("inf"), None
 
     def find_closest_stop(self, graph, hex_id, walk_speed):
-        #TODO: look for every instance of this function and make sure they're no longer dependent on "service"
         best_stop = None
         best_time = float("inf")
         for stop in self.fixedroute_graph.nodes:
@@ -145,8 +159,6 @@ class Network:
                     best_dock = dock
         return best_dock, best_time
 
-    def find_service_chains():
-        pass # Placeholder for actual implementation
 
     def build_fixedroute_graph(self, fixed_routes):
         """
@@ -155,28 +167,37 @@ class Network:
         G = nx.MultiDiGraph()
 
         for route in fixed_routes:
-            vehicle = route.vehicles[0]  # Assume all vehicles on the route have the same timetable
-            timetable = vehicle.timetable  # OrderedDict[int, (arr, dep)]
-            stop_indices = list(timetable.keys())
+            if route.name in self.fixedroute_lookup:
+                print(f"Warning: Duplicate route name detected: {route.name}")
+            self.fixedroute_lookup[route.name] = route
+            # Assume all vehicles along the same direction on the route have the same timetable
+            # Should change if we ever use another scheduling method
+            if route.bidirectional:
+                vehicles = route.vehicles[:2]  # the first two vehicles represent both directions
+            else:
+                vehicles = route.vehicles[:1]
+            for vehicle in vehicles:
+                timetable = vehicle.timetable  # OrderedDict[int, (arr, dep)]
+                stop_indices = list(timetable.keys())
 
-            for i in range(len(stop_indices) - 1):
-                a = route.stops[stop_indices[i]]
-                b = route.stops[stop_indices[i + 1]]
+                for i in range(len(stop_indices) - 1):
+                    a = route.stops[stop_indices[i]]
+                    b = route.stops[stop_indices[i + 1]]
 
-                dep_time = timetable[stop_indices[i]][1] # departure time of stop i
-                arr_time = timetable[stop_indices[i + 1]][0] # arrival time of stop i+1
+                    dep_time = timetable[stop_indices[i]][1] # departure time of stop i
+                    arr_time = timetable[stop_indices[i + 1]][0] # arrival time of stop i+1
 
-                minutes = (arr_time - dep_time).total_seconds() / 60
+                    minutes = (arr_time - dep_time).total_seconds() / 60
 
-                G.add_edge(
-                    a.hex_id,
-                    b.hex_id,
-                    weight=minutes,
-                    route=route.name,
-                    #vehicle_id=id(vehicle),
-                )
-
+                    G.add_edge(
+                        a.hex_id,
+                        b.hex_id,
+                        weight=minutes,
+                        route=route.name,
+                        #vehicle_id=id(vehicle),
+                    )
         self.fixedroute_graph = G
+
 
     def build_component_distance_table(self):
         """
@@ -210,14 +231,17 @@ class Network:
                         if d < best[0]:
                             best = (d, a, b)
 
+                walk_speed = self.config.walk_speed
+                best_distance = best[0] / walk_speed  * 60 # in minutes
+
                 table[i][j] = {
-                    "distance": best[0],
+                    "distance": best_distance,
                     "from": best[1],
                     "to": best[2],
                 }
 
                 table[j][i] = {
-                    "distance": best[0],
+                    "distance": best_distance,
                     "from": best[2],
                     "to": best[1],
                 }
@@ -226,7 +250,6 @@ class Network:
         for a in table:
             for b, data in table[a].items():
                 component_graph.add_edge(a, b, weight=data["distance"])
-
 
         self.component_distance_table = {
             "node_to_component": node_to_component,
@@ -240,6 +263,12 @@ class Network:
         path: [hex_id, ...]
         annotated_steps: [(hex_id, route_name), ...]
         """
+        # if the combination already exists in the path_lookup
+        if start in self.path_lookup and end in self.path_lookup[start]:
+            #print("Cached path is actually working")
+            #print("---", self.path_lookup[start][end])
+            return self.path_lookup[start][end]
+        
         G = self.fixedroute_graph
 
         path = nx.shortest_path(G, start, end, weight="weight")
@@ -247,74 +276,38 @@ class Network:
         steps = []
         prev_route = None
 
+        # calculate total minutes
+        minutes = 0
+
         for u, v in zip(path[:-1], path[1:]):
-            edge = G[u][v]
-            route = edge["route"]
+            # consistently pick the edge with the smallest weight if multiple edges exist
+            edge_data = G.get_edge_data(u, v)
+            if edge_data is None:
+                continue
+            # edge_data is a dict of edge keys to edge attribute dicts
+            min_weight = float('inf')
+            min_edge = None
+            for key, attr in edge_data.items():
+                if attr.get("weight", float('inf')) < min_weight:
+                    min_weight = attr["weight"]
+                    min_edge = attr
+
+            route = min_edge["route"]
 
             if route != prev_route:
                 steps.append((u, route))
                 prev_route = route
 
-        #steps.append((end, None))
-        return path, steps
+            minutes += min_weight
+        self.path_lookup[start][end] = ([steps], minutes)
+        return ([steps], minutes)
     
-    def route_across_components(self, start_hex_id, end_hex_id):
-        """
-        Returns:
-        annotated_steps: [(hex_id, route_name), ...]
-        """
-        node_to_comp = self.component_distance_table["node_to_component"]
-
-        s = start_hex_id
-        e = end_hex_id
-
-        cs = node_to_comp[s]
-        ce = node_to_comp[e]
-
-        if cs == ce:
-            return self.route_within_component(s, e)
-
-        CG = self.component_distance_table["graph"]
-        comp_path = nx.shortest_path(CG, cs, ce, weight="weight")
-
-        full_steps = []
-
-        for c_from, c_to in zip(comp_path[:-1], comp_path[1:]):
-            bridge = self.component_distance_table["table"][c_from][c_to]
-
-            a = bridge["from"]
-            b = bridge["to"]
-
-            # Route inside component c_from
-            _, steps_a = self.route_within_component(s, a)
-            full_steps.extend(steps_a)
-
-            # Walking transfer
-            full_steps.append((a, "WALK"))
-            #full_steps.append((b, "WALK"))
-
-            s = b  # continue from next component
-
-        # Final component
-        _, steps_end = self.route_within_component(s, e)
-        full_steps.extend(steps_end)
-        full_steps.append((e, None))
-
-        # Output example:
-        # [
-            #(start_ride_hex_id, "Route_A"),
-            #(hex_17, "Route_B"),      # transfer
-            #(hex_42, "WALK"),      # end of component
-            #(hex_88, "Route_C"),
-            #(end_ride_hex_id, None),
-        # ]
-
-        return full_steps
 
     def route_across_components_shortest_k(self, start_hex_id, end_hex_id, k=2):
         """
         Returns:
-        chains: [[(hex_id, route_name), ...], ...] up to k chains
+        single best [(hex_id, route_name), ...] from among k shortest paths across components (encased in a list)
+        multiple paths [[(hex_id, route_name), ...], ...] if multiple found
         """
         node_to_comp = self.component_distance_table["node_to_component"]
 
@@ -323,10 +316,20 @@ class Network:
 
         cs = node_to_comp[s]
         ce = node_to_comp[e]
-
+        # if both in the same component
         if cs == ce:
-            path, steps = self.route_within_component(s, e)
+            steps_list, _ = self.route_within_component(s, e)
+            #print("---------------", steps_list)
+            steps = steps_list[0].copy()
+            steps.append((e, None))
             return [steps]
+        
+        # otherwise if the combination already exists in the path_lookup
+        if s in self.path_lookup and e in self.path_lookup[s]:
+            #print("Cached path is actually working level 2")
+            return self.path_lookup[s][e][0]
+        
+        best_minutes = float("inf")
 
         CG = self.component_distance_table["graph"]
         comp_paths = list(
@@ -339,27 +342,39 @@ class Network:
             full_steps = []
 
             for c_from, c_to in zip(comp_path[:-1], comp_path[1:]):
+                path_minutes = 0
                 bridge = self.component_distance_table["table"][c_from][c_to]
 
                 a = bridge["from"]
                 b = bridge["to"]
+                walk_minutes = bridge["distance"]
 
                 # Route inside component c_from
-                _, steps_a = self.route_within_component(s, a)
+                steps_a_list, minutes = self.route_within_component(s, a)
+                steps_a = steps_a_list[0]
                 full_steps.extend(steps_a)
 
+                path_minutes += minutes
                 # Walking transfer
                 full_steps.append((a, "WALK"))
                 #full_steps.append((b, "WALK"))
 
                 s = b  # continue from next component
+                path_minutes += walk_minutes
 
             # Final component
-            _, steps_end = self.route_within_component(s, e)
+            steps_end_list, minutes_end = self.route_within_component(s, e)
+            steps_end = steps_end_list[0]
             full_steps.extend(steps_end)
             full_steps.append((e, None))
 
-            all_chains.append(full_steps)
+            if path_minutes + minutes_end < best_minutes:
+                best_minutes = path_minutes + minutes_end
+                all_chains = [full_steps]
+            elif path_minutes + minutes_end == best_minutes:
+                all_chains.append(full_steps)
+
+        self.path_lookup[start_hex_id][end_hex_id] = (all_chains, best_minutes)
 
         return all_chains
     
@@ -367,9 +382,12 @@ class Network:
     def build_route_for_chain(self, chain, start, end, demand_time, demand, graph, walk_speed):
         """
         build_route_for_chain using the chain obtained by the new logic obtained from route_across_components
+        start: Hex
+        end: Hex
         chain: [(hex_id, route_name), ...]
         Returns: Route or raises Exception if something invalid.
         """
+        # start and end SHOULD be already on the fixed route graph
         actions = []
         current_time = demand_time
         num_transfers = 0
@@ -392,9 +410,10 @@ class Network:
             start_time=current_time,
             end_time=current_time + timedelta(hours=s1_walk_time),
             start_hex=start,
-            end_hex=s1_start,
+            end_hex=Hex(s1_start),
             walk_speed=walk_speed,
             unit=demand.unit,
+            graph=self.graph,
         )
         actions.append(walk_to_start)
         current_time = walk_to_start.end_time
@@ -403,6 +422,7 @@ class Network:
 
         # Traverse the chain
         for i in range(len(chain) - 1):
+            
             curr_hex_id, curr_route = chain[i]
             next_hex_id, next_route = chain[i + 1]
 
@@ -416,25 +436,21 @@ class Network:
                     end_hex=Hex(next_hex_id),
                     walk_speed=walk_speed,
                     unit=demand.unit,
+                    graph=self.graph,
                 )
                 actions.append(transfer_walk)
                 current_time = transfer_walk.end_time
                 num_transfers += 1
             else:
                 # Ride on service
-                service = None
-                # TODO: should we optimize this search too later via dictionary?
-                for s in self.services:
-                    if isinstance(s, FixedRouteService) and s.name == curr_route:
-                        service = s
-                        break
+                service = self.fixedroute_lookup.get(curr_route, None)
                 if service is None:
                     raise Exception(f"Service {curr_route} not found in network.")
 
                 wait_ride = service.get_route(
                     unit=demand.unit,
                     start_time=current_time,
-                    start_hex=Hex(prev_hex_id),
+                    start_hex=Hex(curr_hex_id),
                     end_hex=Hex(next_hex_id),
                 )
                 actions.extend(wait_ride)
@@ -453,6 +469,7 @@ class Network:
             end_hex=end,
             walk_speed=walk_speed,
             unit=demand.unit,
+            graph=self.graph,
         )
         actions.append(final_walk)
         current_time = final_walk.end_time
@@ -527,7 +544,15 @@ class Network:
         # 2. FixedRouteService options
         
         try:
-            chains = self.route_across_components_shortest_k(start.hex_id, end.hex_id, k=2)
+            start_stop, start_walk_time = self.find_closest_stop(
+                self.graph, start.hex_id, walk_speed
+            )
+            end_stop, end_walk_time = self.find_closest_stop(
+                self.graph, end.hex_id, walk_speed
+            )
+
+            chains = self.route_across_components_shortest_k(start_stop, end_stop, k=2)
+            #print("Trying chains:", chains)
             for chain in chains:
                 try:
                     fixedroute_chain_route = self.build_route_for_chain(
@@ -536,10 +561,14 @@ class Network:
                     if fixedroute_chain_route.total_cost > walk_fixed_best_cost:  # total_cost is utility (higher is better)
                         walk_fixed_best_cost = fixedroute_chain_route.total_cost
                         walk_fixed_best_route = fixedroute_chain_route
-                except Exception:
-                    continue
+                except Exception: # Any case where the chain returned is a "false" positive e.g. no available vehicles on the route is dealt with here
+                    pass
+                    traceback.print_exc()
+                    raise
         except Exception:
             pass
+            traceback.print_exc()
+            raise
 
         # 3. OnDemandService options
 
@@ -646,6 +675,7 @@ class Network:
         # foolproofing for None routes
         choices = [walk_best_route]
         logits = [walk_best_cost]
+        #print(walk_best_cost, walk_fixed_best_cost, ondemanddocked_best_cost, ondemanddockless_best_cost)
         if walk_fixed_best_route is not None:
             logits.append(walk_fixed_best_cost)
             choices.append(walk_fixed_best_route)

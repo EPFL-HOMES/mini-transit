@@ -11,7 +11,7 @@ from .services.ondemand import OnDemandRouteServiceConfig
 from .demand import Demand, DemandSampler, demand_input_from_csv
 from .network import Network, NetworkConfig
 from .serialization import SerializedAction, serialize_action, serialize_action_dict
-from .services.fixedroute import FixedRouteServiceConfig
+from .services.fixedroute import FixedRouteService, FixedRouteServiceConfig
 from .services.services_loader import load_services_from_json
 from .simulation import Simulation
 
@@ -147,7 +147,9 @@ class SimulationRunner:
         services = load_services_from_json(services_json_path, self.network)
         self.network.services.extend(services)
         # Build fixed route graph after loading services
-        self.network.build_fixedroute_graph(self.network.services)
+        fixed_services = [s for s in self.network.services if isinstance(s, FixedRouteService)]
+        self.network.build_fixedroute_graph(fixed_services)
+        self.network.build_component_distance_table()
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
         """

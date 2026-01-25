@@ -1,0 +1,21 @@
+{
+  "fixed_route_services": [
+    {
+      "name": "Metro Line 1",
+      "stops": [928, 1120, 1041, 949],
+      "frequency": 5,
+      "capacity": 100,
+      "stopping_time": 0,
+      "travel_time": 0.5
+    },
+    {
+      "name": "Metro Line 2",
+      "stops": [142, 471, 478, 808],
+      "frequency": 3,
+      "capacity": 100,
+      "stopping_time": 0,
+      "travel_time": 0.5
+    }
+  ]
+}
+

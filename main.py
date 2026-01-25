@@ -189,6 +189,10 @@ def init_simulation(city_name: str):
             "network_info": network_info,
         }
     except Exception as e:
+        import traceback
+        print("❌ ERROR:", e)
+        traceback.print_exc()  # <-- This prints the full stack trace
+        raise  # Re-raise so FastAPI logs it as a 500
         raise HTTPException(status_code=500, detail=f"Failed to initialize simulation: {e}") from e
 
 
