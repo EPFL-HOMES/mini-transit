@@ -34,11 +34,11 @@ def load_services_from_json(json_path: str, network) -> List:
 
         # Load fixed route services
         fixed_route_services_data = data.get("fixed_route_services", [])
-        services.extend(_load_fixed_route_services(fixed_route_services_data, network))
+        services.extend(load_fixed_route_services(fixed_route_services_data, network))
 
         # Load on-demand services
         ondemand_services_data = data.get("ondemand_services", [])
-        services.extend(_load_ondemand_services(ondemand_services_data, network))
+        services.extend(load_ondemand_services(ondemand_services_data, network))
 
         return services
 
@@ -50,7 +50,7 @@ def load_services_from_json(json_path: str, network) -> List:
         return []
 
 
-def _load_fixed_route_services(services_data: List, network) -> List:
+def load_fixed_route_services(services_data: List, network) -> List:
     """Load fixed route services from JSON data."""
     from .fixedroute import FixedRouteService
 
@@ -102,7 +102,7 @@ def _load_fixed_route_services(services_data: List, network) -> List:
     return services
 
 
-def _load_ondemand_services(services_data: List, network) -> List:
+def load_ondemand_services(services_data: List, network) -> List:
     """Load on-demand services from JSON data."""
     services = []
 
