@@ -89,20 +89,20 @@ class DemandSampler:
 
         for demand_input in demand_inputs:
             total_demand = float(demand_input.unit)  # from your CSV "demands" column - total units
-            
+
             if total_demand <= 0:
                 continue  # Skip zero or negative demand
-            
+
             cumulative_sum = 0.0
-            
+
             # Keep splitting until cumulative sum exceeds initial demand
             while cumulative_sum < total_demand:
                 # Sample a unit size from available unit sizes
                 unit_size: int = self._sample_unit_size()
-                
+
                 # Sample a random time within the hour
                 arrival_time = self._sample_time_within_hour(demand_input.hour)
-                
+
                 # Create a demand with this unit size
                 demand_model = Demand(
                     time=arrival_time,
@@ -111,7 +111,7 @@ class DemandSampler:
                     unit=unit_size,
                 )
                 demands.append(demand_model)
-                
+
                 # Update cumulative sum
                 cumulative_sum += unit_size
 

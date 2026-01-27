@@ -24,6 +24,7 @@ class WalkSerializedAction(BaseSerializedAction):
     end_hex: int
     walk_speed: float
     distance: float
+    walk_path: list[int] | None = None  # Optional walk path as list of hex IDs
 
 
 @dataclass
@@ -73,6 +74,7 @@ def serialize_action(action: Action) -> dict:
                 "end_hex": action.end_hex.hex_id,
                 "walk_speed": action.walk_speed,
                 "distance": action.distance,
+                "walk_path": action.walk_path,
             }
         )
     elif isinstance(action, Ride):
@@ -137,6 +139,7 @@ def serialize_action_dict(action: dict) -> dict:
                 "end_hex": action["end_hex"].hex_id,
                 "walk_speed": action["walk_speed"],
                 "distance": action["distance"],
+                "walk_path": action["walk_path"] if "walk_path" in action else None,
             }
         )
     elif action_type == "Ride":

@@ -14,7 +14,7 @@ from .action import Action
 class OnDemandRide(Action):
     """
     Represents an on-demand ride action between two hexagons.
-    
+
     For on-demand services (like bike share), each vehicle is taken exclusively
     by one unit. Unlike fixed-route services where multiple units can share
     a vehicle, on-demand vehicles are checked for availability at pickup locations

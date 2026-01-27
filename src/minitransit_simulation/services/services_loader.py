@@ -166,7 +166,9 @@ def _load_ondemand_services(services_data: List, network) -> List:
                         vehicle.current_location = docking_stations[dock_index].location
                     except Exception as e:
                         # If docking station is full, just set location without docking
-                        print(f"Warning: Could not dock vehicle {vehicle.vehicle_id} at station {docking_stations[dock_index].station_id}: {e}")
+                        print(
+                            f"Warning: Could not dock vehicle {vehicle.vehicle_id} at station {docking_stations[dock_index].station_id}: {e}"
+                        )
                         vehicle.current_location = docking_stations[dock_index].location
 
             ondemand_service = OnDemandRouteServiceDocked(

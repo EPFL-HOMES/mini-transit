@@ -149,7 +149,7 @@ class Simulation:
         start_time = time.perf_counter()
         route = self.network.get_optimal_route(demand)
         end_time = time.perf_counter()
-        self.total_optimal_route_time += (end_time - start_time)
+        self.total_optimal_route_time += end_time - start_time
 
         if route is None or not route.actions:
             # No valid route found, skip this demand
@@ -185,11 +185,13 @@ class Simulation:
                 current_action = current_event.get_current_action()
 
                 # Check if this is a Ride action that needs capacity checking
+                from .actions.ondemand_ride import OnDemandRide
                 from .actions.ride import Ride
 
-                from .actions.ondemand_ride import OnDemandRide
-
-                if isinstance(current_action, (Ride, OnDemandRide)) and current_action.vehicle is not None:
+                if (
+                    isinstance(current_action, (Ride, OnDemandRide))
+                    and current_action.vehicle is not None
+                ):
                     # The event end_time is when the ride ends, so we need to unload passengers
                     vehicle = current_action.vehicle
 
@@ -197,24 +199,23 @@ class Simulation:
                     # OnDemandRide doesn't track capacity during ride, so we don't need to unload
                     if isinstance(current_action, Ride):
                         vehicle.unload_passengers(current_action.unit)
-                    
+
                     # For OnDemandRide with docked service, return vehicle to docking station
                     if isinstance(current_action, OnDemandRide):
-                        from .services.ondemand import (
-                            OnDemandRouteServiceDocked,
-                        )
+                        from .services.ondemand import OnDemandRouteServiceDocked
+
                         if isinstance(current_action.service, OnDemandRouteServiceDocked):
                             # Find docking station at end location
                             end_location = current_action.end_hex
                             service = current_action.service
-                            
+
                             # Find the docking station at this location
                             docking_station = None
                             for dock in service.docking_stations:
                                 if dock.location.hex_id == end_location.hex_id:
                                     docking_station = dock
                                     break
-                            
+
                             if docking_station is not None:
                                 # Return vehicle to docking station
                                 try:
@@ -333,10 +334,8 @@ class Simulation:
         # Only fixed-route services have stop_hex_lookup and timetable
         # For on-demand services, if capacity is exceeded, we can't find another vehicle
         # (they don't follow schedules), so return None to skip this demand
-        from .services.ondemand import (
-            OnDemandRouteServiceDocked,
-            OnDemandRouteServiceDockless,
-        )
+        from .services.ondemand import OnDemandRouteServiceDocked, OnDemandRouteServiceDockless
+
         if isinstance(service, (OnDemandRouteServiceDocked, OnDemandRouteServiceDockless)):
             return None
 
@@ -344,7 +343,7 @@ class Simulation:
         start_index = service.stop_hex_lookup[start_hex]
         end_index = service.stop_hex_lookup[end_hex]
 
-        #TODO: DO WE handle the edge case where multiple services share same route and a demand can choose the next approaching vehicle from ANOTHER service?
+        # TODO: DO WE handle the edge case where multiple services share same route and a demand can choose the next approaching vehicle from ANOTHER service?
         # probably too extreme of an edge case to worry about now
         # Try to find next departure after current vehicle's departure
         try:
@@ -400,6 +399,7 @@ class Simulation:
                         action.unit,
                         action.graph,
                         action.walk_speed,
+                        self.network.get_walk_shortest_path(action.start_hex, action.end_hex),
                     )
                     updated_actions.append(updated_walk)
                 elif isinstance(action, Ride):

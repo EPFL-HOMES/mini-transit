@@ -6,12 +6,11 @@ Defines SimulationRunner, its configuration, and input/output data structures.
 import json
 from dataclasses import asdict, dataclass, field
 
-from .services.ondemand import OnDemandRouteServiceConfig
-
 from .demand import Demand, DemandSampler, demand_input_from_csv
 from .network import Network, NetworkConfig
 from .serialization import SerializedAction, serialize_action, serialize_action_dict
 from .services.fixedroute import FixedRouteService, FixedRouteServiceConfig
+from .services.ondemand import OnDemandRouteServiceConfig
 from .services.services_loader import load_services_from_json
 from .simulation import Simulation
 
@@ -272,10 +271,14 @@ class SimulationRunner:
 
             # Calculate percentage of time spent in get_optimal_route
             optimal_route_time = simulation.total_optimal_route_time
-            optimal_route_percentage = (optimal_route_time / simulation_duration * 100) if simulation_duration > 0 else 0
+            optimal_route_percentage = (
+                (optimal_route_time / simulation_duration * 100) if simulation_duration > 0 else 0
+            )
             print(f"\nTime analysis for simulation (hour {simulation_hour}):")
             print(f"  Total simulation time: {simulation_duration:.3f} seconds")
-            print(f"  Time in get_optimal_route: {optimal_route_time:.3f} seconds ({optimal_route_percentage:.1f}%)")
+            print(
+                f"  Time in get_optimal_route: {optimal_route_time:.3f} seconds ({optimal_route_percentage:.1f}%)"
+            )
 
             # Convert routes to JSON-serializable format
             routes_data = []
@@ -291,8 +294,10 @@ class SimulationRunner:
                     # Handle both Action objects and dictionary actions
                     if hasattr(action, "start_time"):
                         action_data = serialize_action(action)
+                        # print("DEBUG: using the serialize_action function")
                     elif isinstance(action, dict):
                         action_data = serialize_action_dict(action)
+                        # print("DEBUG: using the serialize_action_dict function")
 
                     route_data["actions"].append(action_data)
 

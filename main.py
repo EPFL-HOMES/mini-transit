@@ -190,6 +190,7 @@ def init_simulation(city_name: str):
         }
     except Exception as e:
         import traceback
+
         print("❌ ERROR:", e)
         traceback.print_exc()  # <-- This prints the full stack trace
         raise  # Re-raise so FastAPI logs it as a 500
@@ -201,7 +202,7 @@ def run_simulation(input_data: Dict[str, Any] | None = None):
     """Run the simulation with given parameters"""
     try:
         from src.minitransit_simulation.simulation_runner import SimulationRunnerInput
-        
+
         input_payload = input_data or {}
         # Convert dictionary to SimulationRunnerInput dataclass
         hour = input_payload.get("hour", 8)
