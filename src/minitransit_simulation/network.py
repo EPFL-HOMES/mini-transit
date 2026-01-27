@@ -302,6 +302,27 @@ class Network:
         self.path_lookup[start][end] = ([steps], minutes)
         return ([steps], minutes)
     
+    def best_bridge_from_node(self, source_node, target_component):
+        """
+        Find closest node in target_component to source_node via walking graph.
+        """
+        best = (float("inf"), None)
+
+        for node, comp in self.component_distance_table["node_to_component"].items():
+            if comp != target_component:
+                continue
+
+            d = nx.shortest_path_length(
+                self.graph,
+                source_node,
+                node,
+                weight="weight",
+            )
+            if d < best[0]:
+                best = (d, node)
+
+        return best  # (distance, node)
+
 
     def route_across_components_shortest_k(self, start_hex_id, end_hex_id, k=2):
         """
@@ -313,6 +334,8 @@ class Network:
 
         s = start_hex_id
         e = end_hex_id
+
+        direct_walk_start = s
 
         cs = node_to_comp[s]
         ce = node_to_comp[e]
@@ -339,35 +362,54 @@ class Network:
         all_chains = []
 
         for comp_path in comp_paths:
+            used_fixed_route = False
+            s = start_hex_id
+            direct_walk_start = s
             full_steps = []
 
+            path_minutes = 0
             for c_from, c_to in zip(comp_path[:-1], comp_path[1:]):
-                path_minutes = 0
                 bridge = self.component_distance_table["table"][c_from][c_to]
 
                 a = bridge["from"]
-                b = bridge["to"]
-                walk_minutes = bridge["distance"]
 
-                # Route inside component c_from
-                steps_a_list, minutes = self.route_within_component(s, a)
-                steps_a = steps_a_list[0]
-                full_steps.extend(steps_a)
+                # Case 1: normal intra-component travel
+                if s != a:
+                    # only the moment the new component isn't empty do we even bother to walk from our latest walk-start to s
+                    full_steps.append((direct_walk_start, "WALK"))
+                    direct_walk_start = a # reset for next component
+                    steps_a_list, minutes = self.route_within_component(s, a)
+                    if minutes > 0:
+                        used_fixed_route = True
+                    steps_a = steps_a_list[0]
+                    full_steps.extend(steps_a)
+                    path_minutes += minutes
 
-                path_minutes += minutes
-                # Walking transfer
-                full_steps.append((a, "WALK"))
-                #full_steps.append((b, "WALK"))
+                    full_steps.append((a, "WALK"))
+                    walk_minutes = bridge["distance"]
+                    b = bridge["to"]
 
-                s = b  # continue from next component
+                # Case 2: already at optimal exit → recompute bridge locally
+                else:
+                    walk_minutes, b = self.best_bridge_from_node(s, c_to)
+                    full_steps.append((s, "WALK"))
+
                 path_minutes += walk_minutes
+                s = b
 
             # Final component
-            steps_end_list, minutes_end = self.route_within_component(s, e)
-            steps_end = steps_end_list[0]
-            full_steps.extend(steps_end)
-            full_steps.append((e, None))
-
+            # even for the final component we add steps ONLY if we are not already at the optimal entry point
+            # else this means this entire chain isn't really viable via fixed routes at all
+            if s != e:
+                steps_end_list, minutes_end = self.route_within_component(s, e)
+                steps_end = steps_end_list[0]
+                full_steps.append((direct_walk_start, "WALK"))
+                full_steps.extend(steps_end)
+                full_steps.append((e, None))
+            else:
+                minutes_end = 0
+                if not used_fixed_route:
+                    continue # skip this chain entirely since it means no fixed route was used at all
             if path_minutes + minutes_end < best_minutes:
                 best_minutes = path_minutes + minutes_end
                 all_chains = [full_steps]
@@ -554,6 +596,8 @@ class Network:
             chains = self.route_across_components_shortest_k(start_stop, end_stop, k=2)
             #print("Trying chains:", chains)
             for chain in chains:
+                if chain is None:
+                    continue
                 try:
                     fixedroute_chain_route = self.build_route_for_chain(
                         chain, start, end, demand_time, demand, self.graph, walk_speed
@@ -563,10 +607,7 @@ class Network:
                         walk_fixed_best_route = fixedroute_chain_route
                 except Exception: # Any case where the chain returned is a "false" positive e.g. no available vehicles on the route is dealt with here
                     pass
-                    traceback.print_exc()
-                    raise
         except Exception:
-            pass
             traceback.print_exc()
             raise
 
