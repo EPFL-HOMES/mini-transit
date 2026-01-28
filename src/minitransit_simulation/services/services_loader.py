@@ -49,6 +49,35 @@ def load_services_from_json(json_path: str, network) -> List:
         traceback.print_exc()
         return []
 
+def load_services_from_dict(data: dict, network) -> List:
+    """
+    Load both fixed-route and on-demand services from a dictionary.
+    Args:
+        data (dict): Dictionary containing services data.
+        network (Network): The network to which the services will be added.
+    Returns:
+        List: List of all service objects (both fixed route and on-demand).
+    """
+    try:
+        services = []
+
+        # Load fixed route services
+        fixed_route_services_data = data.get("fixed_route_services", [])
+        services.extend(load_fixed_route_services(fixed_route_services_data, network))
+
+        # Load on-demand services
+        ondemand_services_data = data.get("ondemand_services", [])
+        services.extend(load_ondemand_services(ondemand_services_data, network))
+
+        return services
+
+    except Exception as e:
+        print(f"Error loading services from dict: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return []
+
 
 def load_fixed_route_services(services_data: List, network) -> List:
     """Load fixed route services from JSON data."""

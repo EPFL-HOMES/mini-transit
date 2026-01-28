@@ -12,6 +12,7 @@ from src.minitransit_simulation.simulation_runner import (
     SimulationRunnerInput,
     SimulationRunnerResult,
 )
+from src.minitransit_simulation.services.services_loader import load_services_from_json, FixedRouteService
 
 # Add parent directory to path to import other modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -66,8 +67,15 @@ class APIServer:
         self.runner.init_area(
             geojson_path=geojson_path,
             demands_path=demands_path,
-            services_json_path=services_path,
         )
+
+        services = load_services_from_json(services_path, self.runner.network)
+        # TODO: switch to load_services_from_dict if needed
+        self.runner.network.services.extend(services)
+        # Build fixed route graph after loading services
+        fixed_services = [s for s in self.runner.network.services if isinstance(s, FixedRouteService)]
+        self.runner.network.build_fixedroute_graph(fixed_services)
+        self.runner.network.build_component_distance_table()
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
         """

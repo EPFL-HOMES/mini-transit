@@ -131,7 +131,6 @@ class SimulationRunner:
         self,
         geojson_path: str,
         demands_path: str,
-        services_json_path: str,
     ):
         """
         Initialize the application for a given city.
@@ -143,12 +142,7 @@ class SimulationRunner:
         """
         self.network = Network(geojson_path, self.config)
         self.demand_inputs = demand_input_from_csv(demands_path)
-        services = load_services_from_json(services_json_path, self.network)
-        self.network.services.extend(services)
-        # Build fixed route graph after loading services
-        fixed_services = [s for s in self.network.services if isinstance(s, FixedRouteService)]
-        self.network.build_fixedroute_graph(fixed_services)
-        self.network.build_component_distance_table()
+        
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
         """
