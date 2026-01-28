@@ -1,0 +1,128 @@
+{
+  "fixed_route_services": [
+      {
+        "name": "Metro Line 1",
+        "stops": [576, 574, 625, 623, 618, 616, 556, 554, 716, 823, 1068],
+        "frequency": 3,
+        "capacity": 100,
+        "stopping_time": 0,
+        "travel_time": 0.5
+      },
+      {
+        "name": "Metro Line 2",
+        "stops": [54, 136, 237, 408, 576, 687, 580, 797, 1003, 1180],
+        "frequency": 3,
+        "capacity": 100,
+        "stopping_time": 0,
+        "travel_time": 0.5
+      }, 
+      {
+        "name": "Bus 6",
+        "stops": [576, 517, 456, 508, 274, 269],
+        "frequency": 3,
+        "capacity": 100,
+        "stopping_time": 0,
+        "travel_time": 0.5
+      }, 
+      {
+        "name": "Bus 4",
+        "stops": [576, 790, 891, 1037, 1166, 1171, 1091, 953, 801, 752],
+        "frequency": 3,
+        "capacity": 100,
+        "stopping_time": 0,
+        "travel_time": 0.5
+      },
+      {
+        "name": "Bus 5",
+        "stops": [576, 628, 785, 934, 1116, 1291, 1416, 1440, 1346],
+        "frequency": 3,
+        "capacity": 100,
+        "stopping_time": 0,
+        "travel_time": 0.5
+      },
+      {
+        "name": "Bus 3",
+        "stops": [576, 295, 354, 301, 197, 152, 257, 209, 80],
+        "frequency": 3,
+        "capacity": 100,
+        "stopping_time": 0,
+        "travel_time": 0.5
+      }
+    ],
+  "ondemand_services": [
+    {
+      "name": "Bike Share Docked",
+      "type": "docked",
+      "capacity": 1,
+      "vehicles": [
+        {
+          "vehicle_id": "bike_1",
+          "initial_location": 408,
+          "capacity": 10
+        },
+        {
+          "vehicle_id": "bike_2",
+          "initial_location": 573,
+          "capacity": 10
+        },
+        {
+          "vehicle_id": "bike_3",
+          "initial_location": 569,
+          "capacity": 10
+        },
+        {
+          "vehicle_id": "bike_4",
+          "initial_location": 682,
+          "capacity": 10
+        },
+        {
+          "vehicle_id": "bike_5",
+          "initial_location": 616,
+          "capacity": 10
+        }
+      ],
+      "docking_stations": [
+        {
+          "station_id": "dock_1",
+          "location": 408,
+          "capacity": 10
+        },
+        {
+          "station_id": "dock_2",
+          "location": 573,
+          "capacity": 10
+        },
+        {
+          "station_id": "dock_3",
+          "location": 569,
+          "capacity": 10
+        },
+        {
+          "station_id": "dock_4",
+          "location": 682,
+          "capacity": 10
+        },
+        {
+          "station_id": "dock_5",
+          "location": 616,
+          "capacity": 10
+        },
+        {
+          "station_id": "dock_6",
+          "location": 611,
+          "capacity": 10
+        },
+        {
+          "station_id": "dock_7",
+          "location": 551,
+          "capacity": 10
+        },
+        {
+          "station_id": "dock_8",
+          "location": 1068,
+          "capacity": 10
+        }
+      ]
+    }
+  ]
+}

@@ -24,6 +24,7 @@ class WalkSerializedAction(BaseSerializedAction):
     end_hex: int
     walk_speed: float
     distance: float
+    walk_path: list[int] | None = None  # Optional walk path as list of hex IDs
 
 
 @dataclass
@@ -32,6 +33,7 @@ class RideSerializedAction(BaseSerializedAction):
 
     start_hex: int
     end_hex: int
+    service_name: str | None = None  # Name of the fixed route service used
 
 
 @dataclass
@@ -72,6 +74,7 @@ def serialize_action(action: Action) -> dict:
                 "end_hex": action.end_hex.hex_id,
                 "walk_speed": action.walk_speed,
                 "distance": action.distance,
+                "walk_path": action.walk_path,
             }
         )
     elif isinstance(action, Ride):
@@ -79,6 +82,7 @@ def serialize_action(action: Action) -> dict:
             {
                 "start_hex": action.start_hex.hex_id,
                 "end_hex": action.end_hex.hex_id,
+                "service_name": action.service.name if action.service else None,
             }
         )
     elif isinstance(action, Wait):
@@ -135,6 +139,7 @@ def serialize_action_dict(action: dict) -> dict:
                 "end_hex": action["end_hex"].hex_id,
                 "walk_speed": action["walk_speed"],
                 "distance": action["distance"],
+                "walk_path": action["walk_path"] if "walk_path" in action else None,
             }
         )
     elif action_type == "Ride":
@@ -153,6 +158,11 @@ def serialize_action_dict(action: dict) -> dict:
                     ),
                 }
             )
+            # Add service name if available
+            if "service" in action and action["service"]:
+                service = action["service"]
+                service_name = service.name if hasattr(service, "name") else None
+                action_data["service_name"] = service_name
     elif action_type == "Wait":
         if "location" in action:
             location = action["location"]
