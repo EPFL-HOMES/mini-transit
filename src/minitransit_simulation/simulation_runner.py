@@ -142,7 +142,6 @@ class SimulationRunner:
         """
         self.network = Network(geojson_path, self.config)
         self.demand_inputs = demand_input_from_csv(demands_path)
-        
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
         """

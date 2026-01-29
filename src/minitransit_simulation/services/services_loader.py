@@ -49,6 +49,7 @@ def load_services_from_json(json_path: str, network) -> List:
         traceback.print_exc()
         return []
 
+
 def load_services_from_dict(data: dict, network) -> List:
     """
     Load both fixed-route and on-demand services from a dictionary.
