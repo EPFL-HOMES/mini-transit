@@ -107,6 +107,8 @@ def load_fixed_route_services(services_data: List, network) -> List:
         stopping_time = timedelta(minutes=stopping_time_minutes)
         travel_time = timedelta(minutes=travel_time_minutes)
 
+        base_fare = float(service_info.get("base_fare", 2.4))
+
         stops = [Hex(hex_id) for hex_id in stops_hex_ids]
 
         if not stops:
@@ -125,6 +127,7 @@ def load_fixed_route_services(services_data: List, network) -> List:
             network=network,
             freq_period=freq_period,
             bidirectional=default_bidirectional,
+            base_fare=base_fare,
         )
 
         services.append(fixed_route_service)

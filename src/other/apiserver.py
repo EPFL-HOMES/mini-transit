@@ -8,8 +8,8 @@ import sys
 
 from src.minitransit_simulation.services.services_loader import (
     FixedRouteService,
+    load_services_from_dict,
     load_services_from_json,
-    load_services_from_dict
 )
 from src.minitransit_simulation.simulation_runner import (
     SimulationRunner,
