@@ -38,6 +38,7 @@ def create_basic_service(bidirectional=True) -> FixedRouteService:
         network=network,
         freq_period=[(period_start, period_end, frequency)],
         bidirectional=bidirectional,
+        base_fare=2.4,
     )
     return service
 

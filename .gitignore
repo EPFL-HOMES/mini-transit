@@ -41,3 +41,4 @@ instance/
 poetry.lock
 
 data/simulation_results/
+src/data/simulation_results/

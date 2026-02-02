@@ -33,6 +33,7 @@ class FixedRouteService(Service):
         freq_period (List[Tuple[datetime, datetime, timedelta]]): List of frequency periods where each tuple contains
             (start_time, end_time, frequency).
         bidirectional (bool): Whether to create reverse-direction services as well.
+        base_fare (float): Base fare for the service.
     """
 
     def __init__(
@@ -45,6 +46,7 @@ class FixedRouteService(Service):
         network: NetworkModel,
         freq_period: List[Tuple[datetime, datetime, timedelta]],
         bidirectional: bool = True,
+        base_fare: float = FixedRouteServiceConfig().fixedroute_base_fare,  # default to config value
         config: FixedRouteServiceConfig = FixedRouteServiceConfig(),
     ):
         super().__init__(name)
@@ -56,6 +58,7 @@ class FixedRouteService(Service):
         self.stopping_time = stopping_time
         self.travel_time = travel_time
         self.bidirectional = bidirectional
+        self.base_fare = base_fare
 
         timetables = self.__freq_to_timetables(freq_period)
         self.vehicles = [
@@ -194,7 +197,7 @@ class FixedRouteService(Service):
         return best_vehicle
 
     def get_fare(self, start_hex, end_hex, time=None) -> float:
-        return self.config.fixedroute_base_fare
+        return self.base_fare
 
     def get_route(
         self,
@@ -383,6 +386,8 @@ def fixed_route_services_from_dict(data: dict, network: NetworkModel) -> list[Fi
             stopping_time = timedelta(minutes=stopping_time_minutes)
             travel_time = timedelta(minutes=travel_time_minutes)
 
+            base_fare = float(service_info.get("base_fare", 2.4))
+
             # Convert hex IDs to Hex objects
             stops = [Hex(hex_id) for hex_id in stops_hex_ids]
 
@@ -404,6 +409,7 @@ def fixed_route_services_from_dict(data: dict, network: NetworkModel) -> list[Fi
                 network=network,
                 freq_period=freq_period,
                 bidirectional=default_bidirectional,
+                base_fare=base_fare,
             )
 
             # Add to network
