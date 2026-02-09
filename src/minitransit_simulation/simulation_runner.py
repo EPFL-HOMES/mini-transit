@@ -11,7 +11,7 @@ from .network import Network, NetworkConfig
 from .serialization import SerializedAction, serialize_action, serialize_action_dict
 from .services.fixedroute import FixedRouteService, FixedRouteServiceConfig
 from .services.ondemand import OnDemandRouteServiceConfig
-from .services.services_loader import load_services_from_json
+from .services.services_loader import load_services_from_dict, load_services_from_json
 from .simulation import Simulation
 
 
@@ -142,6 +142,28 @@ class SimulationRunner:
         """
         self.network = Network(geojson_path, self.config)
         self.demand_inputs = demand_input_from_csv(demands_path)
+
+    def add_services_from_dict(self, services_dict: dict):
+        """
+        Add services to the network from a dictionary.
+
+        Args:
+            services_dict (dict): Dictionary containing service definitions.
+        """
+        services = load_services_from_dict(services_dict, self.network)
+        self.network.services.extend(services)
+        self._build_network()  # Build the network after loading services
+
+    def add_services_from_json(self, services_json_path: str):
+        """
+        Add services to the network from a JSON file.
+
+        Args:
+            services_json_path (str): Path to the JSON file containing service definitions.
+        """
+        services = load_services_from_json(services_json_path, self.network)
+        self.network.services.extend(services)
+        self._build_network()  # Build the network after loading services
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
         """
@@ -300,23 +322,6 @@ class SimulationRunner:
             total_fare = sum(route.total_fare for route in routes)
             average_fare = total_fare / len(routes) if len(routes) > 0 else 0.0
 
-            result = {
-                "status": "success",
-                "message": f"Simulation completed successfully for hour {simulation_hour}",
-                "routes": routes_data,
-                "simulation_time": f"{simulation_duration:.2f}s",
-                "simulation_hour": simulation_hour,
-                "demands_processed": len(processed_demands),
-                "input_demands_count": len(filtered_demand_inputs),
-                "sampling_enabled": use_sampling,
-                "routes_generated": len(routes),
-                "total_units": sum(route.unit for route in routes),
-                "total_time_minutes": sum(route.time_taken_minutes for route in routes),
-                "total_fare": total_fare,
-                "average_fare": average_fare,
-                "network_routes_taken": len(self.network.routes_taken),
-            }
-
             return SimulationRunnerResult(
                 status="success",
                 message=f"Simulation completed successfully for hour {simulation_hour}",
@@ -358,6 +363,18 @@ class SimulationRunner:
             "edges": len(self.network.graph.edges()),
             "demand_inputs": len(self.demand_inputs),
         }
+
+    def _build_network(self):
+        """
+        Build the fixed route graph and component distance table for the network.
+        This should be called after all services have been loaded.
+        """
+        if self.network is None:
+            raise ValueError("Network must be initialized before building it.")
+
+        fixed_services = [s for s in self.network.services if isinstance(s, FixedRouteService)]
+        self.network.build_fixedroute_graph(fixed_services)
+        self.network.build_component_distance_table()
 
     def __repr__(self):
         return f"SimulationRunner(network={self.network is not None}, demand_inputs={len(self.demand_inputs)})"

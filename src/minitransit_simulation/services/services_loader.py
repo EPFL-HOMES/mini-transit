@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 from typing import List
 
 from ..primitives.hex import Hex
-from .fixedroute import FixedRouteService
 from .ondemand import DockingStation, OnDemandRouteServiceDocked, OnDemandVehicle
 
 
@@ -30,16 +29,7 @@ def load_services_from_json(json_path: str, network) -> List:
         with open(json_path, "r") as f:
             data = json.load(f)
 
-        services = []
-
-        # Load fixed route services
-        fixed_route_services_data = data.get("fixed_route_services", [])
-        services.extend(load_fixed_route_services(fixed_route_services_data, network))
-
-        # Load on-demand services
-        ondemand_services_data = data.get("ondemand_services", [])
-        services.extend(load_ondemand_services(ondemand_services_data, network))
-
+        services = load_services_from_dict(data, network)
         return services
 
     except Exception as e:

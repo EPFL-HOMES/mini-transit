@@ -73,15 +73,7 @@ class APIServer:
             demands_path=demands_path,
         )
 
-        services = load_services_from_json(services_path, self.runner.network)
-        # TODO: switch to load_services_from_dict if needed
-        self.runner.network.services.extend(services)
-        # Build fixed route graph after loading services
-        fixed_services = [
-            s for s in self.runner.network.services if isinstance(s, FixedRouteService)
-        ]
-        self.runner.network.build_fixedroute_graph(fixed_services)
-        self.runner.network.build_component_distance_table()
+        self.runner.add_services_from_json(services_path)
 
     def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
         """
