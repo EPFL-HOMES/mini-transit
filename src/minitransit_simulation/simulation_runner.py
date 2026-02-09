@@ -165,12 +165,12 @@ class SimulationRunner:
         self.network.services.extend(services)
         self._build_network()  # Build the network after loading services
 
-    def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
+    def run_simulation(self, input: SimulationRunnerInput) -> SimulationRunnerResult:
         """
         Run the simulation with given input parameters.
 
         Args:
-            input_json (SimulationRunnerInput): Input parameters for the simulation.
+            input (SimulationRunnerInput): Input parameters for the simulation.
 
         Returns:
             SimulationRunnerResult: JSON output with simulation results.
@@ -187,7 +187,7 @@ class SimulationRunner:
 
             # Extract simulation parameters
             simulation_hour = (
-                input_json.hour if hasattr(input_json, "hour") else 8
+                input.hour if hasattr(input, "hour") else 8
             )  # Default to hour 8 if not specified
 
             use_sampling = self.config.sampling if hasattr(self.config, "sampling") else True
