@@ -3,6 +3,7 @@ Event-driven simulation system using priority queue.
 """
 
 import heapq
+import time
 from datetime import datetime
 from typing import List, Optional
 
@@ -135,6 +136,7 @@ class Simulation:
         self.network = network
         self.event_queue = []  # Priority queue (min-heap)
         self.completed_routes = []  # Routes that have been completed
+        self.total_optimal_route_time = 0.0  # Track time spent in get_optimal_route
 
     def add_demand(self, demand: Demand):
         """
@@ -144,8 +146,10 @@ class Simulation:
             demand: The demand to add to the simulation.
         """
         # Find optimal route for this demand
-        print(f"Finding optimal route for demand: {demand}")
+        start_time = time.perf_counter()
         route = self.network.get_optimal_route(demand)
+        end_time = time.perf_counter()
+        self.total_optimal_route_time += end_time - start_time
 
         if route is None or not route.actions:
             # No valid route found, skip this demand
@@ -181,14 +185,49 @@ class Simulation:
                 current_action = current_event.get_current_action()
 
                 # Check if this is a Ride action that needs capacity checking
+                from .actions.ondemand_ride import OnDemandRide
                 from .actions.ride import Ride
 
-                if isinstance(current_action, Ride) and current_action.vehicle is not None:
+                if (
+                    isinstance(current_action, (Ride, OnDemandRide))
+                    and current_action.vehicle is not None
+                ):
                     # The event end_time is when the ride ends, so we need to unload passengers
                     vehicle = current_action.vehicle
 
-                    # Unload passengers when ride ends
-                    vehicle.unload_passengers(current_action.unit)
+                    # Unload passengers when ride ends (only for Ride, not OnDemandRide)
+                    # OnDemandRide doesn't track capacity during ride, so we don't need to unload
+                    if isinstance(current_action, Ride):
+                        vehicle.unload_passengers(current_action.unit)
+
+                    # For OnDemandRide with docked service, return vehicle to docking station
+                    if isinstance(current_action, OnDemandRide):
+                        from .services.ondemand import OnDemandRouteServiceDocked
+
+                        if isinstance(current_action.service, OnDemandRouteServiceDocked):
+                            # Find docking station at end location
+                            end_location = current_action.end_hex
+                            service = current_action.service
+
+                            # Find the docking station at this location
+                            docking_station = None
+                            for dock in service.docking_stations:
+                                if dock.location.hex_id == end_location.hex_id:
+                                    docking_station = dock
+                                    break
+
+                            if docking_station is not None:
+                                # Return vehicle to docking station
+                                try:
+                                    docking_station.dock_vehicle(vehicle)
+                                    # Update vehicle's location to match docking station
+                                    vehicle.current_location = docking_station.location
+                                    # Make vehicle available immediately (it's at the dock now)
+                                    vehicle.available_time = current_event.end_time
+                                except Exception:
+                                    # Docking station is full - vehicle remains at location but not docked
+                                    # In real system, might need to handle this differently
+                                    pass
 
                     # Complete the ride action and move to next
                     next_event = current_event.get_next_event()
@@ -221,6 +260,7 @@ class Simulation:
 
                             if (
                                 isinstance(peek_next_action, Ride)
+                                and not isinstance(peek_next_action, OnDemandRide)
                                 and peek_next_action.vehicle == vehicle
                                 and peek_next_action.start_time == boarding_time
                             ):
@@ -291,10 +331,20 @@ class Simulation:
         unit = ride_action.unit
         current_time = event.actions[0].end_time if event.actions else ride_action.start_time
 
+        # Only fixed-route services have stop_hex_lookup and timetable
+        # For on-demand services, if capacity is exceeded, we can't find another vehicle
+        # (they don't follow schedules), so return None to skip this demand
+        from .services.ondemand import OnDemandRouteServiceDocked, OnDemandRouteServiceDockless
+
+        if isinstance(service, (OnDemandRouteServiceDocked, OnDemandRouteServiceDockless)):
+            return None
+
         # Find next vehicle after the current one
         start_index = service.stop_hex_lookup[start_hex]
         end_index = service.stop_hex_lookup[end_hex]
 
+        # TODO: DO WE handle the edge case where multiple services share same route and a demand can choose the next approaching vehicle from ANOTHER service?
+        # probably too extreme of an edge case to worry about now
         # Try to find next departure after current vehicle's departure
         try:
             # Get departure time of current vehicle
@@ -349,6 +399,7 @@ class Simulation:
                         action.unit,
                         action.graph,
                         action.walk_speed,
+                        self.network.get_walk_shortest_path(action.start_hex, action.end_hex),
                     )
                     updated_actions.append(updated_walk)
                 elif isinstance(action, Ride):

@@ -75,32 +75,44 @@ class DemandSampler:
     # ------------------------ Public API ------------------------ #
     def sample_hourly_demand(self, demand_inputs: List[DemandInput]) -> List[DemandModel]:
         """
-        For each DemandInput, interpret demand_input.unit as λ, the expected number
-        of trip requests in that hour, for the OD pair (start_hex, end_hex).
+        For each DemandInput, interpret demand_input.unit as the total demand (total units)
+        for that hour, for the OD pair (start_hex, end_hex).
 
         For each such row, we:
-          1. Sample N ~ Poisson(λ).
-          2. For each of the N demands, sample a time uniformly within that hour.
-          3. Draw an INTEGER unit size from self.unit_sizes for that demand.
+          1. Split the total demand into individual demands with unit sizes from self.unit_sizes.
+          2. Keep creating demands with random unit sizes until the cumulative sum exceeds the initial demand.
+          3. Sample a time uniformly within that hour for each demand.
 
         Returns a flat list of DemandModel (actually Demand) objects.
         """
         demands: List[DemandModel] = []
 
         for demand_input in demand_inputs:
-            lam = float(demand_input.unit)  # from your CSV "demands" column
-            n_trips = self._poisson(lam)
+            total_demand = float(demand_input.unit)  # from your CSV "demands" column - total units
 
-            for _ in range(n_trips):
-                arrival_time = self._sample_time_within_hour(demand_input.hour)
+            if total_demand <= 0:
+                continue  # Skip zero or negative demand
+
+            cumulative_sum = 0.0
+
+            # Keep splitting until cumulative sum exceeds initial demand
+            while cumulative_sum < total_demand:
+                # Sample a unit size from available unit sizes
                 unit_size: int = self._sample_unit_size()
 
+                # Sample a random time within the hour
+                arrival_time = self._sample_time_within_hour(demand_input.hour)
+
+                # Create a demand with this unit size
                 demand_model = Demand(
                     time=arrival_time,
                     start_hex=demand_input.start_hex,
                     end_hex=demand_input.end_hex,
-                    unit=unit_size,  # now guaranteed int
+                    unit=unit_size,
                 )
                 demands.append(demand_model)
+
+                # Update cumulative sum
+                cumulative_sum += unit_size
 
         return demands

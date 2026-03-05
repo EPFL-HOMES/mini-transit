@@ -35,6 +35,7 @@ class Walk(Action):
         unit: int,
         graph: nx.Graph,
         walk_speed: float = None,
+        walk_path: list[int] = None,
         config: WalkConfig = WalkConfig(),
     ):
         """
@@ -53,6 +54,7 @@ class Walk(Action):
         self.end_hex = end_hex
         self.graph = graph  # Store graph for distance calculation
         self.fare = 0.0  # Walking has no fare
+        self.walk_path = walk_path
 
         if walk_speed is None:
             self.walk_speed = self.config.walk_speed

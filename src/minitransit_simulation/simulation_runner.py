@@ -9,12 +9,9 @@ from dataclasses import asdict, dataclass, field
 from .demand import Demand, DemandSampler, demand_input_from_csv
 from .network import Network, NetworkConfig
 from .serialization import SerializedAction, serialize_action, serialize_action_dict
-from .services.fixedroute import (
-    FixedRouteServiceConfig,
-    fixed_route_services_from_dict,
-    fixed_route_services_from_json,
-)
+from .services.fixedroute import FixedRouteService, FixedRouteServiceConfig
 from .services.ondemand import OnDemandRouteServiceConfig
+from .services.services_loader import load_services_from_dict, load_services_from_json
 from .simulation import Simulation
 
 
@@ -141,25 +138,39 @@ class SimulationRunner:
         Args:
             geojson_path (str): Path to the GeoJSON file for the city's network.
             demands_path (str): Path to the CSV file containing time-dependent demands.
-            fixedroute_json_path (str): Path to the JSON file containing fixed route services.
+            services_json_path (str): Path to the JSON file containing both fixed route and on-demand services.
         """
         self.network = Network(geojson_path, self.config)
         self.demand_inputs = demand_input_from_csv(demands_path)
 
-    def add_fixed_route_services_from_json(self, fixedroute_json_path: str):
-        services = fixed_route_services_from_json(fixedroute_json_path, self.network)
-        self.network.services.extend(services)
+    def add_services_from_dict(self, services_dict: dict):
+        """
+        Add services to the network from a dictionary.
 
-    def add_fixed_route_services_from_dict(self, fixedroute_data: dict):
-        services = fixed_route_services_from_dict(fixedroute_data, self.network)
+        Args:
+            services_dict (dict): Dictionary containing service definitions.
+        """
+        services = load_services_from_dict(services_dict, self.network)
         self.network.services.extend(services)
+        self._build_network()  # Build the network after loading services
 
-    def run_simulation(self, input_json: SimulationRunnerInput) -> SimulationRunnerResult:
+    def add_services_from_json(self, services_json_path: str):
+        """
+        Add services to the network from a JSON file.
+
+        Args:
+            services_json_path (str): Path to the JSON file containing service definitions.
+        """
+        services = load_services_from_json(services_json_path, self.network)
+        self.network.services.extend(services)
+        self._build_network()  # Build the network after loading services
+
+    def run_simulation(self, runner_input: SimulationRunnerInput) -> SimulationRunnerResult:
         """
         Run the simulation with given input parameters.
 
         Args:
-            input_json (SimulationRunnerInput): Input parameters for the simulation.
+            runner_input (SimulationRunnerInput): Input parameters for the simulation.
 
         Returns:
             SimulationRunnerResult: JSON output with simulation results.
@@ -176,7 +187,7 @@ class SimulationRunner:
 
             # Extract simulation parameters
             simulation_hour = (
-                input_json.hour if hasattr(input_json, "hour") else 8
+                runner_input.hour if hasattr(runner_input, "hour") else 8
             )  # Default to hour 8 if not specified
 
             use_sampling = self.config.sampling if hasattr(self.config, "sampling") else True
@@ -273,6 +284,17 @@ class SimulationRunner:
             simulation_end_time = datetime.now()
             simulation_duration = (simulation_end_time - simulation_start_time).total_seconds()
 
+            # Calculate percentage of time spent in get_optimal_route
+            optimal_route_time = simulation.total_optimal_route_time
+            optimal_route_percentage = (
+                (optimal_route_time / simulation_duration * 100) if simulation_duration > 0 else 0
+            )
+            print(f"\nTime analysis for simulation (hour {simulation_hour}):")
+            print(f"  Total simulation time: {simulation_duration:.3f} seconds")
+            print(
+                f"  Time in get_optimal_route: {optimal_route_time:.3f} seconds ({optimal_route_percentage:.1f}%)"
+            )
+
             # Convert routes to JSON-serializable format
             routes_data = []
             for route in routes:
@@ -287,8 +309,10 @@ class SimulationRunner:
                     # Handle both Action objects and dictionary actions
                     if hasattr(action, "start_time"):
                         action_data = serialize_action(action)
+                        # print("DEBUG: using the serialize_action function")
                     elif isinstance(action, dict):
                         action_data = serialize_action_dict(action)
+                        # print("DEBUG: using the serialize_action_dict function")
 
                     route_data["actions"].append(action_data)
 
@@ -297,23 +321,6 @@ class SimulationRunner:
             # Calculate average fare
             total_fare = sum(route.total_fare for route in routes)
             average_fare = total_fare / len(routes) if len(routes) > 0 else 0.0
-
-            result = {
-                "status": "success",
-                "message": f"Simulation completed successfully for hour {simulation_hour}",
-                "routes": routes_data,
-                "simulation_time": f"{simulation_duration:.2f}s",
-                "simulation_hour": simulation_hour,
-                "demands_processed": len(processed_demands),
-                "input_demands_count": len(filtered_demand_inputs),
-                "sampling_enabled": use_sampling,
-                "routes_generated": len(routes),
-                "total_units": sum(route.unit for route in routes),
-                "total_time_minutes": sum(route.time_taken_minutes for route in routes),
-                "total_fare": total_fare,
-                "average_fare": average_fare,
-                "network_routes_taken": len(self.network.routes_taken),
-            }
 
             return SimulationRunnerResult(
                 status="success",
@@ -356,6 +363,18 @@ class SimulationRunner:
             "edges": len(self.network.graph.edges()),
             "demand_inputs": len(self.demand_inputs),
         }
+
+    def _build_network(self):
+        """
+        Build the fixed route graph and component distance table for the network.
+        This should be called after all services have been loaded.
+        """
+        if self.network is None:
+            raise ValueError("Network must be initialized before building it.")
+
+        fixed_services = [s for s in self.network.services if isinstance(s, FixedRouteService)]
+        self.network.build_fixedroute_graph(fixed_services)
+        self.network.build_component_distance_table()
 
     def __repr__(self):
         return f"SimulationRunner(network={self.network is not None}, demand_inputs={len(self.demand_inputs)})"
