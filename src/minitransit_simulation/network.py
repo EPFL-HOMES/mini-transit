@@ -3,6 +3,7 @@ Network class representing the transportation network of a city.
 """
 
 import traceback
+import time
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import timedelta
@@ -68,6 +69,8 @@ class Network:
         # for v in self.graph.nodes:
         # self.path_lookup[u][v] = (None, float("inf"))
 
+        self.closest_stop_lookup = {}  # Initialize the lookup table for closest stops. hex_id -> (stop, dist)
+
     def get_distance(self, start_hex, end_hex) -> int:
         """
         Get the distance in hexagons between two hexes using the network graph.
@@ -113,14 +116,32 @@ class Network:
             return float("inf"), None
 
     def find_closest_stop(self, graph, hex_id, walk_speed):
-        best_stop = None
-        best_time = float("inf")
-        for stop in self.fixedroute_graph.nodes:
-            walk_time, _ = self.compute_walk_time(graph, hex_id, stop, walk_speed)
-            if walk_time < best_time:
-                best_time = walk_time
-                best_stop = stop
-        return best_stop, best_time
+        # best_stop = None
+        # best_time = float("inf")
+        # for stop in self.fixedroute_graph.nodes:
+        #     walk_time, _ = self.compute_walk_time(graph, hex_id, stop, walk_speed)
+        #     if walk_time < best_time:
+        #         best_time = walk_time
+        #         best_stop = stop
+        # return best_stop, best_time
+        """
+        O(1) dictionary lookup replacing the previous O(N) loop.
+        Retrieves the precalculated distance and dynamically converts it to time.
+        """
+        # Check if the node exists in our precomputed cache
+        if hasattr(self, 'closest_stop_lookup') and hex_id in self.closest_stop_lookup:
+            best_stop, distance = self.closest_stop_lookup[hex_id]
+            
+            # Handle isolated nodes
+            if best_stop is None or distance == float("inf"):
+                return None, float("inf")
+            
+            # Dynamically compute walk time based on the passed walk_speed
+            walk_time = distance / walk_speed
+            return best_stop, walk_time
+            
+        # Failsafe return
+        return None, float("inf")
 
     def find_closest_ondemand_vehicle(
         self, graph, hex_id, service, walk_speed, demand_time, radius=2
@@ -209,6 +230,47 @@ class Network:
                         # vehicle_id=id(vehicle),
                     )
         self.fixedroute_graph = G
+
+        # Build the closest stops table immediately
+        self.build_closest_stops_table()
+
+    def build_closest_stops_table(self):
+        """
+        Precomputes the closest fixed-route stop for every hex in the entire city graph.
+        Utilizes Multi-Source Dijkstra to achieve O(E log V) performance.
+        This runs only ONCE during initialization.
+        """
+        self.closest_stop_lookup = {}
+
+        # Safely check if the fixed route graph exists and has nodes
+        if not self.fixedroute_graph or len(self.fixedroute_graph.nodes) == 0:
+            return
+
+        all_stops = set(self.fixedroute_graph.nodes)
+
+        # Perform Multi-Source Dijkstra expanding from ALL bus stops simultaneously.
+        # distances: dict mapping {node_id -> shortest_distance_to_any_stop}
+        # paths: dict mapping {node_id -> [closest_stop, ... , target_node]}
+        try:
+            distances, paths = nx.multi_source_dijkstra(
+                self.graph,
+                sources=all_stops,
+                weight="length"
+            )
+
+            for node, dist in distances.items():
+                # The first element in the path array is the source stop we expanded from
+                closest_stop = paths[node][0]
+                # Store physical distance instead of time to keep it speed-agnostic
+                self.closest_stop_lookup[node] = (closest_stop, dist)
+
+        except Exception as e:
+            print(f"Warning: Failed to precompute closest stops. {e}")
+
+        # Fallback for completely isolated nodes (e.g., islands with no bridges)
+        for node in self.graph.nodes:
+            if node not in self.closest_stop_lookup:
+                self.closest_stop_lookup[node] = (None, float("inf"))
 
     def build_component_distance_table(self):
         """
@@ -542,6 +604,8 @@ class Network:
         Returns:
             Route: The optimal route to fulfill the demand.
         """
+        # print('*'*30)
+        time_start = time.time()
 
         walk_speed = self.config.walk_speed
         # Find shortest path using NetworkX
@@ -596,15 +660,21 @@ class Network:
             s for s in self.services if isinstance(s, OnDemandRouteServiceDockless)
         ]
 
+        time_walk = time.time()
+
         # 2. FixedRouteService options
+        a0 = time.time()
 
         try:
             start_stop, start_walk_time = self.find_closest_stop(
                 self.graph, start.hex_id, walk_speed
             )
+            a1 = time.time()
             end_stop, end_walk_time = self.find_closest_stop(self.graph, end.hex_id, walk_speed)
+            a2 = time.time()
 
             chains = self.route_across_components_shortest_k(start_stop, end_stop, k=2)
+            a3 = time.time()
             # print("Trying chains:", chains)
             for chain in chains:
                 if chain is None:
@@ -622,9 +692,12 @@ class Network:
                     Exception
                 ):  # Any case where the chain returned is a "false" positive e.g. no available vehicles on the route is dealt with here
                     pass
+            a4 = time.time()
         except Exception:
             traceback.print_exc()
             raise
+
+        time_fixed = time.time()
 
         # 3. OnDemandService options
 
@@ -699,6 +772,8 @@ class Network:
             except Exception:
                 continue
 
+        time_docked = time.time()
+
         for service in ondemandservices_dockless:
             best_vehicle, vehicle_walk_time = self.find_closest_ondemand_vehicle(
                 self.graph, start.hex_id, service, walk_speed, demand_time, radius=2
@@ -747,6 +822,8 @@ class Network:
             except Exception:
                 continue
 
+        time_dockless = time.time()
+
         # After evaluating all options, determine route probabilities via softmax
         # foolproofing for None routes
         choices = [walk_best_route]
@@ -783,6 +860,28 @@ class Network:
                     vehicle.current_location = action.end_hex
                     # simulate being unavailable until the end of the action
                     vehicle.available_time = action.end_time
+
+        time_end = time.time()
+
+        
+        total_time = time_end - time_start
+        walk_time = time_walk - time_start
+        fixed_time = time_fixed - time_walk
+        docked_time = time_docked - time_fixed
+        dockless_time = time_dockless - time_docked
+        # print(f"total time: {total_time}")
+        # print(f"walk time: {walk_time}, ({100 * walk_time / total_time}%)")
+        # print(f"fixed time: {fixed_time}, ({100 * fixed_time / total_time}%)")
+        # print(f"docked time: {docked_time}, ({100 * docked_time / total_time}%)")
+        # print(f"dockless time: {dockless_time}, ({100 * dockless_time / total_time}%)")
+        # print('-'*10)
+        # print(f"a1: {a1-a0}, ({100 * (a1 - a0) / (a4 - a0)}%)")
+        # print(f"a2: {a2-a1}, ({100 * (a2 - a1) / (a4 - a0)}%)")
+        # print(f"a3: {a3-a2}, ({100 * (a3 - a2) / (a4 - a0)}%)")
+        # print(f"a4: {a4-a3}, ({100 * (a4 - a3) / (a4 - a0)}%)")
+
+
+
 
         return choice
 
