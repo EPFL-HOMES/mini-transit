@@ -6,7 +6,7 @@ Defines SimulationRunner, its configuration, and input/output data structures.
 import json
 import traceback
 from datetime import datetime, timedelta
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 
 from .demand import Demand, DemandSampler, demand_input_from_csv
 from .network import Network, NetworkConfig
@@ -39,7 +39,21 @@ class SimulationRunnerConfig(NetworkConfig, FixedRouteServiceConfig, OnDemandRou
             with open(file_path, "r") as f:
                 config = json.load(f)
             print(f"DEBUG: Config loaded successfully.")
-            return cls(**config)
+
+            # Normalize legacy keys to current dataclass field names:
+            # - `start_time` -> `start_hour`
+            # - `end_time` -> `end_hour`
+            kwargs = dict(config)
+            if "start_time" in kwargs and "start_hour" not in kwargs:
+                kwargs["start_hour"] = kwargs.pop("start_time")
+            if "end_time" in kwargs and "end_hour" not in kwargs:
+                kwargs["end_hour"] = kwargs.pop("end_time")
+
+            # Filter out any unknown keys so `cls(**kwargs)` doesn't raise TypeError
+            allowed = {f.name for f in fields(cls)}
+            filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed}
+
+            return cls(**filtered_kwargs)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Warning: Could not load config from {file_path}: {e}. Using defaults.")
             return cls(
@@ -49,9 +63,8 @@ class SimulationRunnerConfig(NetworkConfig, FixedRouteServiceConfig, OnDemandRou
                     "unit_sizes": [5],
                     "seed": None,
                     "sampling": True,
-                    "start_time": 8,
-                    "end_time": 8,
-                    
+                    "start_hour": 8,
+                    "end_hour": 8,
                 }
             )
 
@@ -132,8 +145,8 @@ class SimulationRunner:
         services = load_services_from_dict(
             services_dict,
             self.network,
-            start_time=self.config.start_time or 0,
-            end_time=self.config.end_time or 23,
+            start_time=getattr(self.config, "start_hour", 0),
+            end_time=getattr(self.config, "end_hour", 23),
         )
         self.network.services.extend(services)
         self._build_network()  
@@ -143,8 +156,8 @@ class SimulationRunner:
         services = load_services_from_json(
             services_json_path,
             self.network,
-            start_time=self.config.start_time or 0,
-            end_time=self.config.end_time or 23,
+            start_time=getattr(self.config, "start_hour", 0),
+            end_time=getattr(self.config, "end_hour", 23),
         )
         self.network.services.extend(services)
         self._build_network()  

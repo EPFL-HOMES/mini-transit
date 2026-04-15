@@ -6,6 +6,6 @@
     "bike_speed": 35.0,
     "utility_function_alpha": 1,
     "utility_function_phi": 2,
-    "start_time": 7,
-    "end_time": 19 
+    "start_hour": 7,
+    "end_hour": 19 
 }

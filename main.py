@@ -212,12 +212,12 @@ def run_simulation(input_data: Dict[str, Any] | None = None):
         start_hour = input_payload.get("start_hour", 8)
         end_hour = input_payload.get("end_hour", 8)
 
-        # read the start time and end time in config.json, if they exist, and override the default values
+        # read the start_hour and end_hour in config (or legacy config mapped earlier), if they exist
         cfg = api_server.runner.config
-        if getattr(cfg, "start_time", None) is not None:
-            start_hour = cfg.start_time
-        if getattr(cfg, "end_time", None) is not None:
-            end_hour = cfg.end_time
+        if getattr(cfg, "start_hour", None) is not None:
+            start_hour = cfg.start_hour
+        if getattr(cfg, "end_hour", None) is not None:
+            end_hour = cfg.end_hour
         
         if start_hour > end_hour:
             raise HTTPException(status_code=400, detail="start_hour cannot be greater than end_hour")
