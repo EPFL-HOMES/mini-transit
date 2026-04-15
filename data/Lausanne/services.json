@@ -60,73 +60,184 @@
       "name": "Bike Share Docked",
       "type": "docked",
       "capacity": 1,
+      "base_fare": 1,
       "vehicles": [
-        {
-          "vehicle_id": "bike_1",
-          "initial_location": 408,
-          "capacity": 10
+        { 
+          "vehicle_id": "bike_1",  
+          "initial_location": 408,  
+          "capacity": 5 
         },
-        {
-          "vehicle_id": "bike_2",
-          "initial_location": 573,
-          "capacity": 10
+        { 
+          "vehicle_id": "bike_2",  
+          "initial_location": 573,  
+          "capacity": 5 
         },
-        {
-          "vehicle_id": "bike_3",
-          "initial_location": 569,
-          "capacity": 10
+        { 
+          "vehicle_id": "bike_3",  
+          "initial_location": 569,  
+          "capacity": 5 
         },
-        {
-          "vehicle_id": "bike_4",
-          "initial_location": 682,
-          "capacity": 10
+        { 
+          "vehicle_id": "bike_4",  
+          "initial_location": 682,  
+          "capacity": 5 
         },
-        {
-          "vehicle_id": "bike_5",
-          "initial_location": 616,
-          "capacity": 10
+        { 
+          "vehicle_id": "bike_5",  
+          "initial_location": 616,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_6",  
+          "initial_location": 611,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_7",  
+          "initial_location": 551,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_8",  
+          "initial_location": 1068,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_9",  
+          "initial_location": 269,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_10",  
+          "initial_location": 517,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_11",  
+          "initial_location": 790,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_12",  
+          "initial_location": 1171,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_13",  
+          "initial_location": 1440,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_14",  
+          "initial_location": 934,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_15",  
+          "initial_location": 54,   
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_16",  
+          "initial_location": 1180,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_17",  
+          "initial_location": 576,  
+          "capacity": 5 
+        },
+        { 
+          "vehicle_id": "bike_19",  
+          "initial_location": 1068,  
+          "capacity": 5 
         }
       ],
       "docking_stations": [
-        {
-          "station_id": "dock_1",
-          "location": 408,
-          "capacity": 10
+        { 
+          "station_id": "dock_1",  
+          "location": 408,  
+          "capacity": 100 
         },
-        {
-          "station_id": "dock_2",
-          "location": 573,
-          "capacity": 10
+        { 
+          "station_id": "dock_2",  
+          "location": 573,  
+          "capacity": 100 
         },
-        {
-          "station_id": "dock_3",
-          "location": 569,
-          "capacity": 10
+        { 
+          "station_id": "dock_3",  
+          "location": 569,  
+          "capacity": 100 
         },
-        {
-          "station_id": "dock_4",
-          "location": 682,
-          "capacity": 10
+        { 
+          "station_id": "dock_4",  
+          "location": 682,  
+          "capacity": 100 
         },
-        {
-          "station_id": "dock_5",
-          "location": 616,
-          "capacity": 10
+        { 
+          "station_id": "dock_5",  
+          "location": 616,  
+          "capacity": 100 
         },
-        {
-          "station_id": "dock_6",
-          "location": 611,
-          "capacity": 10
+        { 
+          "station_id": "dock_6",  
+          "location": 611,  
+          "capacity": 100 
         },
-        {
-          "station_id": "dock_7",
-          "location": 551,
-          "capacity": 10
+        { 
+          "station_id": "dock_7",  
+          "location": 551,  
+          "capacity": 100 
         },
-        {
-          "station_id": "dock_8",
-          "location": 1068,
-          "capacity": 10
+        { 
+          "station_id": "dock_8",  
+          "location": 1068,  
+          "capacity": 100 
+        },
+        { 
+          "station_id": "dock_9",  
+          "location": 269,  
+          "capacity": 100 
+        },
+        { 
+          "station_id": "dock_10",  
+          "location": 517,  
+          "capacity": 100 
+        },
+        { 
+          "station_id": "dock_11",  
+          "location": 790,  
+          "capacity": 100 
+        },
+        { 
+          "station_id": "dock_12",  
+          "location": 1171,  
+          "capacity": 100 
+        },
+        { 
+          "station_id": "dock_13",  
+          "location": 1440,  
+          "capacity": 100 
+        },
+        { 
+          "station_id": "dock_14",  
+          "location": 934,  
+          "capacity": 100 
+        },
+        { 
+          "station_id": "dock_15",  
+          "location": 54,   
+          "capacity": 100 
+        },
+        { 
+          "station_id": "dock_16",  
+          "location": 1180,  
+          "capacity": 100 
+        },
+        { 
+          "station_id": "dock_17",  
+          "location": 576,  
+          "capacity": 100 
         }
       ]
     }

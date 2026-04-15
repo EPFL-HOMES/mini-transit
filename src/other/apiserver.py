@@ -88,7 +88,8 @@ class APIServer:
                 self.last_simulation_result = {
                     "result": result,
                     "routes": result.routes,
-                    "simulation_hour": result.simulation_hour,
+                    "start_hour": getattr(result, "start_hour", 8),
+                    "end_hour": getattr(result, "end_hour", 8),
                 }
 
                 print(
@@ -130,9 +131,14 @@ class APIServer:
             from datetime import datetime
 
             city_name = self.city_name or "Unknown"
+
+            # add new time
+            start_hour = getattr(result, "start_hour", 8)
+            end_hour = getattr(result, "end_hour", 8)
+
             print(
-                f"Starting to save simulation results for {city_name} hour {result.simulation_hour}"
-            )
+                f"Starting to save simulation results for {city_name} hours {start_hour}-{end_hour}"
+                )
 
             # Create results directory if it doesn't exist
             results_dir = os.path.join(
@@ -145,7 +151,7 @@ class APIServer:
 
             # Generate filename with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{city_name}_hour{result.simulation_hour}_{timestamp}.json"
+            filename = f"{city_name}_hours{start_hour}to{end_hour}_{timestamp}.json"
             filepath = os.path.join(results_dir, filename)
             print(f"Saving to: {filepath}")
 

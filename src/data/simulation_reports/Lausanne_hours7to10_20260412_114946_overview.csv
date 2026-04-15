@@ -1,0 +1,11 @@
+Category,Metric,Value
+Macro,Total Passengers,88410
+Macro,Avg Transfers,0.29
+Modal Split,Walk Only,49455
+Modal Split,Walk + Bus,38430
+Modal Split,Walk + Bike,220
+Modal Split,Bike + Bus,305
+Micro Experience,Avg Travel Time (min),19.78
+Micro Experience,Avg Wait Time (min),1.77
+Micro Experience,Avg Walk Time (min),13.17
+Sustainability,Total Vehicle Service Time (hrs),7126.85

@@ -11,7 +11,7 @@ from ..actions.action import Action
 
 @dataclass
 class RouteConfig:
-    utility_function_alpha: float = 1.5
+    utility_function_alpha: float = 1.0
     utility_function_phi: float = 2.0
 
 
