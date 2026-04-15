@@ -1,0 +1,12 @@
+Flask==3.0.0
+geopandas==0.14.1
+pandas==2.1.3
+shapely==2.0.2
+pyproj==3.6.1
+hvplot==0.12.1
+networkx==3.5
+contextily==1.6.2
+bokeh==3.8.0
+holoviews==1.21.0
+panel==1.8.2
+

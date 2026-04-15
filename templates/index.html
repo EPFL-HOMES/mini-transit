@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transportation System Simulation</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        label {
+            font-weight: 600;
+            color: #555;
+            display: block;
+            margin-bottom: 8px;
+        }
+        
+        select, input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        input[type="range"] {
+            cursor: pointer;
+        }
+        
+        .time-display {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #2196F3;
+            margin-top: 5px;
+        }
+        
+        .radio-group {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .radio-group label {
+            display: inline-flex;
+            align-items: center;
+            font-weight: normal;
+            cursor: pointer;
+        }
+        
+        .radio-group input[type="radio"] {
+            margin-right: 5px;
+            cursor: pointer;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .checkbox-group label {
+            display: inline-flex;
+            align-items: center;
+            font-weight: normal;
+            cursor: pointer;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 5px;
+            cursor: pointer;
+        }
+        
+        .simulation-btn {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .simulation-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #45a049, #3d8b40);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .simulation-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .simulation-status {
+            margin-top: 10px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            display: none;
+            white-space: pre-line;
+        }
+        
+        .simulation-status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .simulation-status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .simulation-status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        #map {
+            width: 100%;
+            height: 600px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Transportation System Simulation</h1>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="citySelect">Select City:</label>
+                <select id="citySelect">
+                    <option value="">Loading cities...</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="timeSlider">Time of Day:</label>
+                <input type="range" id="timeSlider" min="0" max="23" value="8" step="1">
+                <div class="time-display" id="timeDisplay">08:00</div>
+            </div>
+            
+            <div class="control-group">
+                <label>Demand Type:</label>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="demandType" value="total" checked>
+                        Total
+                    </label>
+                    <label>
+                        <input type="radio" name="demandType" value="in">
+                        In (Arriving)
+                    </label>
+                    <label>
+                        <input type="radio" name="demandType" value="out">
+                        Out (Departing)
+                    </label>
+                </div>
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="showNetwork" checked>
+                        Show Network Graph
+                    </label>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <button id="runSimulationBtn" class="simulation-btn" disabled>
+                    🚀 Run Simulation
+                </button>
+                <div id="simulationStatus" class="simulation-status"></div>
+            </div>
+        </div>
+        
+        <div id="map"></div>
+        
+        <div class="loading" id="loading" style="display: none;">
+            Loading data...
+        </div>
+    </div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // Global variables
+        let map;
+        let cityLayer = null;
+        let networkLayer = null;
+        let currentNetworkData = null;
+        let currentCity = null;
+        let simulationInitialized = false;
+        
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([46.52, 6.63], 11);
+            
+            // Add OpenStreetMap tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+        }
+        
+        // Style function for hexagons
+        function styleFeature(feature) {
+            return {
+                fillColor: '#2196F3',
+                weight: 1,
+                opacity: 1,
+                color: 'white',
+                fillOpacity: 0.7
+            };
+        }
+        
+        // On each feature function
+        function onEachFeature(feature, layer) {
+            layer.bindPopup(`Hex ID: ${feature.properties.hex_id}`);
+        }
+        
+        // Load cities
+        async function loadCities() {
+            try {
+                const response = await fetch('/api/cities');
+                const cities = await response.json();
+                
+                const select = document.getElementById('citySelect');
+                select.innerHTML = cities.map(city => 
+                    `<option value="${city}">${city}</option>`
+                ).join('');
+                
+                // Load first city by default
+                if (cities.length > 0) {
+                    await loadCity(cities[0]);
+                }
+                
+            } catch (error) {
+                console.error('Error loading cities:', error);
+            }
+        }
+        
+        // Load city data
+        async function loadCity(cityName) {
+            if (!cityName) return;
+            
+            document.getElementById('loading').style.display = 'block';
+            
+            try {
+                const response = await fetch(`/api/city/${cityName}`);
+                const geojsonData = await response.json();
+                
+                // Remove existing layers
+                if (cityLayer) {
+                    map.removeLayer(cityLayer);
+                }
+                if (networkLayer) {
+                    map.removeLayer(networkLayer);
+                    networkLayer = null;
+                }
+                
+                // Add new layer
+                cityLayer = L.geoJSON(geojsonData, {
+                    style: styleFeature,
+                    onEachFeature: onEachFeature
+                }).addTo(map);
+                
+                // Fit map to bounds
+                map.fitBounds(cityLayer.getBounds());
+                
+                // Update current city and reset simulation state
+                currentCity = cityName;
+                simulationInitialized = false;
+                document.getElementById('runSimulationBtn').disabled = true;
+                document.getElementById('simulationStatus').style.display = 'none';
+                
+                // Load network and demand data
+                await Promise.all([
+                    loadNetwork(cityName),
+                    loadDemands()
+                ]);
+                
+                // Initialize simulation for the new city
+                await initializeSimulation(cityName);
+                
+            } catch (error) {
+                console.error('Error loading city:', error);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+        
+        // Load network data
+        async function loadNetwork(cityName) {
+            try {
+                const response = await fetch(`/api/city/${cityName}/network`);
+                currentNetworkData = await response.json();
+                console.log(`Network loaded: ${currentNetworkData.node_count} nodes, ${currentNetworkData.edge_count} edges`);
+                drawNetwork();
+            } catch (error) {
+                console.error('Error loading network:', error);
+            }
+        }
+        
+        // Draw network
+        function drawNetwork() {
+            // Remove existing network layer
+            if (networkLayer) {
+                map.removeLayer(networkLayer);
+                networkLayer = null;
+            }
+
+            // Check if network should be shown
+            const showNetwork = document.getElementById('showNetwork').checked;
+            if (!showNetwork || !currentNetworkData) {
+                return;
+            }
+
+            // Create polylines for each edge
+            const lines = currentNetworkData.edges.map(edge => {
+                return L.polyline(
+                    [
+                        [edge.from[1], edge.from[0]],  // Leaflet uses [lat, lng]
+                        [edge.to[1], edge.to[0]]
+                    ],
+                    {
+                        color: 'lightskyblue',
+                        weight: 1.0,
+                        opacity: 0.65
+                    }
+                );
+            });
+
+            // Add all lines as a layer group
+            networkLayer = L.layerGroup(lines).addTo(map);
+
+            // Send network layer to back (below hexagons)
+            if (networkLayer) {
+                networkLayer.setZIndex(1);
+            }
+            if (cityLayer) {
+                cityLayer.setZIndex(2);
+            }
+        }
+        
+        // Load demands
+        async function loadDemands() {
+            if (!currentCity) return;
+            
+            const hour = document.getElementById('timeSlider').value;
+            const demandType = document.querySelector('input[name="demandType"]:checked').value;
+            
+            try {
+                const response = await fetch(`/api/city/${currentCity}/demands?hour=${hour}&type=${demandType}`);
+                const demandData = await response.json();
+                
+                if (cityLayer) {
+                    cityLayer.setStyle(feature => {
+                        const hexId = feature.properties.hex_id;
+                        const demand = demandData.demands[hexId] || 0;
+                        const intensity = demandData.max > 0 ? demand / demandData.max : 0;
+                        
+                        return {
+                            fillColor: intensity > 0.5 ? '#ff4444' : intensity > 0.2 ? '#ffaa44' : '#44ff44',
+                            weight: 1,
+                            opacity: 1,
+                            color: 'white',
+                            fillOpacity: 0.7
+                        };
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading demands:', error);
+            }
+        }
+        
+        // Simulation functions
+        async function initializeSimulation(cityName) {
+            try {
+                showSimulationStatus('Initializing simulation...', 'info');
+                
+                const response = await fetch(`/api/simulation/init/${cityName}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    simulationInitialized = true;
+                    showSimulationStatus(`✅ Simulation ready for ${cityName}`, 'success');
+                    document.getElementById('runSimulationBtn').disabled = false;
+                } else {
+                    showSimulationStatus(`❌ ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showSimulationStatus(`❌ Failed to initialize: ${error.message}`, 'error');
+            }
+        }
+        
+        async function runSimulation() {
+            if (!simulationInitialized) {
+                showSimulationStatus('❌ Please select a city first', 'error');
+                return;
+            }
+            
+            try {
+                showSimulationStatus('🚀 Running simulation...', 'info');
+                document.getElementById('runSimulationBtn').disabled = true;
+                
+                // Get current hour from time slider
+                const currentHour = parseInt(document.getElementById('timeSlider').value);
+                
+                const response = await fetch('/api/simulation/run', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        hour: currentHour
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Display success message with average fare
+                    const avgFare = result.average_fare ? result.average_fare.toFixed(2) : '0.00';
+                    const totalFare = result.total_fare ? result.total_fare.toFixed(2) : '0.00';
+                    const routesGenerated = result.routes_generated || 0;
+                    const message = `✅ ${result.message}\n📊 Average Fare: ${avgFare} | Routes: ${routesGenerated} | Total Fare: ${totalFare}`;
+                    showSimulationStatus(message, 'success');
+                    console.log(`Simulation results:`, result);
+                } else {
+                    showSimulationStatus(`❌ ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showSimulationStatus(`❌ Simulation failed: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('runSimulationBtn').disabled = false;
+            }
+        }
+        
+        function showSimulationStatus(message, type) {
+            const statusDiv = document.getElementById('simulationStatus');
+            statusDiv.textContent = message;
+            statusDiv.className = `simulation-status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+        
+        // Update time display
+        function updateTimeDisplay() {
+            const hour = document.getElementById('timeSlider').value;
+            const formatted = hour.padStart(2, '0') + ':00';
+            document.getElementById('timeDisplay').textContent = formatted;
+        }
+        
+        // Event listeners
+        document.getElementById('citySelect').addEventListener('change', (e) => {
+            loadCity(e.target.value);
+        });
+        
+        document.getElementById('timeSlider').addEventListener('input', (e) => {
+            updateTimeDisplay();
+        });
+        
+        document.getElementById('timeSlider').addEventListener('change', (e) => {
+            loadDemands();
+        });
+        
+        document.querySelectorAll('input[name="demandType"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                loadDemands();
+            });
+        });
+        
+        document.getElementById('showNetwork').addEventListener('change', () => {
+            drawNetwork();
+        });
+        
+        document.getElementById('runSimulationBtn').addEventListener('click', runSimulation);
+        
+        // Initialize
+        initMap();
+        updateTimeDisplay();
+        loadCities();
+    </script>
+</body>
+</html>
