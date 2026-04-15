@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transportation System Simulation</title>
     
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
@@ -55,39 +54,110 @@
             margin-bottom: 8px;
         }
         
-        select, input[type="range"] {
+        select {
             width: 100%;
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
         }
-        
-        input[type="range"] {
-            cursor: pointer;
+
+        /* --- two buttopn UI  --- */
+        .dual-slider-wrapper {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 6px;
+            border: 1px solid #eee;
+            margin-bottom: 15px;
         }
-        
+
         .time-display {
             text-align: center;
             font-size: 24px;
             font-weight: bold;
             color: #2196F3;
-            margin-top: 5px;
+            margin-bottom: 20px;
+            letter-spacing: 1px;
         }
+
+        .dual-slider-container {
+            position: relative;
+            width: 100%;
+            height: 30px;
+        }
+        
+        .dual-slider-container input[type="range"] {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            margin: 0;
+            pointer-events: none;
+            appearance: none;
+            -webkit-appearance: none;
+            background: transparent;
+            z-index: 3;
+            outline: none;
+        }
+        
+        .dual-slider-container input[type="range"]::-webkit-slider-thumb {
+            pointer-events: auto;
+            appearance: none;
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #2196F3;
+            cursor: grab;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            border: 3px solid white;
+            transition: transform 0.1s;
+        }
+
+        .dual-slider-container input[type="range"]::-webkit-slider-thumb:active {
+            cursor: grabbing;
+            transform: scale(1.1);
+            background: #1976D2;
+        }
+        
+        /* gray track */
+        .slider-track {
+            position: absolute;
+            width: 100%;
+            height: 6px;
+            background: #ddd;
+            top: 50%;
+            transform: translateY(-50%);
+            border-radius: 3px;
+            z-index: 1;
+        }
+        
+        /* Blue highlight progress bar between two points */
+        .slider-range-fill {
+            position: absolute;
+            height: 6px;
+            background: #2196F3;
+            top: 50%;
+            transform: translateY(-50%);
+            border-radius: 3px;
+            z-index: 2;
+        }
+        /* ----------------------- */
         
         .radio-group {
             display: flex;
             gap: 20px;
         }
         
-        .radio-group label {
+        .radio-group label, .checkbox-group label {
             display: inline-flex;
             align-items: center;
             font-weight: normal;
             cursor: pointer;
         }
         
-        .radio-group input[type="radio"] {
+        .radio-group input[type="radio"], .checkbox-group input[type="checkbox"] {
             margin-right: 5px;
             cursor: pointer;
         }
@@ -99,35 +169,26 @@
             margin-top: 10px;
         }
         
-        .checkbox-group label {
-            display: inline-flex;
-            align-items: center;
-            font-weight: normal;
-            cursor: pointer;
-        }
-        
-        .checkbox-group input[type="checkbox"] {
-            margin-right: 5px;
-            cursor: pointer;
-        }
-        
         .simulation-btn {
             background: linear-gradient(135deg, #4CAF50, #45a049);
             color: white;
             border: none;
-            padding: 12px 24px;
+            padding: 14px 24px;
             border-radius: 6px;
             font-size: 16px;
-            font-weight: 600;
+            font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         
         .simulation-btn:hover:not(:disabled) {
             background: linear-gradient(135deg, #45a049, #3d8b40);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         }
         
         .simulation-btn:disabled {
@@ -138,12 +199,13 @@
         }
         
         .simulation-status {
-            margin-top: 10px;
-            padding: 8px 12px;
+            margin-top: 15px;
+            padding: 12px 15px;
             border-radius: 4px;
             font-size: 14px;
             display: none;
             white-space: pre-line;
+            line-height: 1.6;
         }
         
         .simulation-status.success {
@@ -176,11 +238,14 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             color: white;
-            padding: 20px;
+            padding: 20px 30px;
             border-radius: 8px;
             z-index: 1000;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
     </style>
 </head>
@@ -197,38 +262,33 @@
             </div>
             
             <div class="control-group">
-                <label for="timeSlider">Time of Day:</label>
-                <input type="range" id="timeSlider" min="0" max="23" value="8" step="1">
-                <div class="time-display" id="timeDisplay">08:00</div>
+                <label>Simulation Time Range:</label>
+                <div class="dual-slider-wrapper">
+                    <div class="time-display" id="timeRangeDisplay">07:00 - 10:00</div>
+                    <div class="dual-slider-container">
+                        <div class="slider-track"></div>
+                        <div class="slider-range-fill" id="slider-fill"></div>
+                        <input type="range" id="startSlider" min="0" max="23" value="7" step="1">
+                        <input type="range" id="endSlider" min="0" max="23" value="10" step="1">
+                    </div>
+                </div>
             </div>
             
             <div class="control-group">
-                <label>Demand Type:</label>
+                <label>Demand Type (Map Visualization):</label>
                 <div class="radio-group">
-                    <label>
-                        <input type="radio" name="demandType" value="total" checked>
-                        Total
-                    </label>
-                    <label>
-                        <input type="radio" name="demandType" value="in">
-                        In (Arriving)
-                    </label>
-                    <label>
-                        <input type="radio" name="demandType" value="out">
-                        Out (Departing)
-                    </label>
+                    <label><input type="radio" name="demandType" value="total" checked> Total</label>
+                    <label><input type="radio" name="demandType" value="in"> In (Arriving)</label>
+                    <label><input type="radio" name="demandType" value="out"> Out (Departing)</label>
                 </div>
                 <div class="checkbox-group">
-                    <label>
-                        <input type="checkbox" id="showNetwork" checked>
-                        Show Network Graph
-                    </label>
+                    <label><input type="checkbox" id="showNetwork" checked> Show Network Graph</label>
                 </div>
             </div>
             
             <div class="control-group">
                 <button id="runSimulationBtn" class="simulation-btn" disabled>
-                    🚀 Run Simulation
+                    🚀 Run Continuous Simulation
                 </button>
                 <div id="simulationStatus" class="simulation-status"></div>
             </div>
@@ -241,11 +301,10 @@
         </div>
     </div>
     
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
-        // Global variables
+        // --- Global variables ---
         let map;
         let cityLayer = null;
         let networkLayer = null;
@@ -253,18 +312,22 @@
         let currentCity = null;
         let simulationInitialized = false;
         
-        // Initialize map
+        // DOM elements
+        const startSlider = document.getElementById('startSlider');
+        const endSlider = document.getElementById('endSlider');
+        const timeRangeDisplay = document.getElementById('timeRangeDisplay');
+        const sliderFill = document.getElementById('slider-fill');
+        
+        // --- Initialize map ---
         function initMap() {
             map = L.map('map').setView([46.52, 6.63], 11);
-            
-            // Add OpenStreetMap tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors',
                 maxZoom: 19
             }).addTo(map);
         }
         
-        // Style function for hexagons
+        // Map region style
         function styleFeature(feature) {
             return {
                 fillColor: '#2196F3',
@@ -275,73 +338,52 @@
             };
         }
         
-        // On each feature function
         function onEachFeature(feature, layer) {
             layer.bindPopup(`Hex ID: ${feature.properties.hex_id}`);
         }
         
-        // Load cities
+       // --- Core data loading logic --
         async function loadCities() {
             try {
                 const response = await fetch('/api/cities');
                 const cities = await response.json();
                 
                 const select = document.getElementById('citySelect');
-                select.innerHTML = cities.map(city => 
-                    `<option value="${city}">${city}</option>`
-                ).join('');
+                select.innerHTML = cities.map(city => `<option value="${city}">${city}</option>`).join('');
                 
-                // Load first city by default
-                if (cities.length > 0) {
-                    await loadCity(cities[0]);
-                }
-                
+                if (cities.length > 0) await loadCity(cities[0]);
             } catch (error) {
                 console.error('Error loading cities:', error);
             }
         }
         
-        // Load city data
         async function loadCity(cityName) {
             if (!cityName) return;
-            
             document.getElementById('loading').style.display = 'block';
             
             try {
                 const response = await fetch(`/api/city/${cityName}`);
                 const geojsonData = await response.json();
                 
-                // Remove existing layers
-                if (cityLayer) {
-                    map.removeLayer(cityLayer);
-                }
+                if (cityLayer) map.removeLayer(cityLayer);
                 if (networkLayer) {
                     map.removeLayer(networkLayer);
                     networkLayer = null;
                 }
                 
-                // Add new layer
                 cityLayer = L.geoJSON(geojsonData, {
                     style: styleFeature,
                     onEachFeature: onEachFeature
                 }).addTo(map);
                 
-                // Fit map to bounds
                 map.fitBounds(cityLayer.getBounds());
                 
-                // Update current city and reset simulation state
                 currentCity = cityName;
                 simulationInitialized = false;
                 document.getElementById('runSimulationBtn').disabled = true;
                 document.getElementById('simulationStatus').style.display = 'none';
                 
-                // Load network and demand data
-                await Promise.all([
-                    loadNetwork(cityName),
-                    loadDemands()
-                ]);
-                
-                // Initialize simulation for the new city
+                await Promise.all([ loadNetwork(cityName), loadDemands() ]);
                 await initializeSimulation(cityName);
                 
             } catch (error) {
@@ -351,64 +393,40 @@
             }
         }
         
-        // Load network data
         async function loadNetwork(cityName) {
             try {
                 const response = await fetch(`/api/city/${cityName}/network`);
                 currentNetworkData = await response.json();
-                console.log(`Network loaded: ${currentNetworkData.node_count} nodes, ${currentNetworkData.edge_count} edges`);
                 drawNetwork();
             } catch (error) {
                 console.error('Error loading network:', error);
             }
         }
         
-        // Draw network
         function drawNetwork() {
-            // Remove existing network layer
             if (networkLayer) {
                 map.removeLayer(networkLayer);
                 networkLayer = null;
             }
 
-            // Check if network should be shown
-            const showNetwork = document.getElementById('showNetwork').checked;
-            if (!showNetwork || !currentNetworkData) {
-                return;
-            }
+            if (!document.getElementById('showNetwork').checked || !currentNetworkData) return;
 
-            // Create polylines for each edge
             const lines = currentNetworkData.edges.map(edge => {
                 return L.polyline(
-                    [
-                        [edge.from[1], edge.from[0]],  // Leaflet uses [lat, lng]
-                        [edge.to[1], edge.to[0]]
-                    ],
-                    {
-                        color: 'lightskyblue',
-                        weight: 1.0,
-                        opacity: 0.65
-                    }
+                    [[edge.from[1], edge.from[0]], [edge.to[1], edge.to[0]]],
+                    { color: 'lightskyblue', weight: 1.0, opacity: 0.65 }
                 );
             });
 
-            // Add all lines as a layer group
             networkLayer = L.layerGroup(lines).addTo(map);
-
-            // Send network layer to back (below hexagons)
-            if (networkLayer) {
-                networkLayer.setZIndex(1);
-            }
-            if (cityLayer) {
-                cityLayer.setZIndex(2);
-            }
+            if (networkLayer) networkLayer.setZIndex(1);
+            if (cityLayer) cityLayer.setZIndex(2);
         }
         
-        // Load demands
         async function loadDemands() {
             if (!currentCity) return;
-            
-            const hour = document.getElementById('timeSlider').value;
+            // Heatmap on the map, displaying the demand of the hour selected by startSlider by default
+            const hour = startSlider.value; 
             const demandType = document.querySelector('input[name="demandType"]:checked').value;
             
             try {
@@ -435,23 +453,21 @@
             }
         }
         
-        // Simulation functions
+       // --- Simulation scheduling logic ---
         async function initializeSimulation(cityName) {
             try {
-                showSimulationStatus('Initializing simulation...', 'info');
+                showSimulationStatus('Initializing simulation framework...', 'info');
                 
                 const response = await fetch(`/api/simulation/init/${cityName}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: { 'Content-Type': 'application/json' }
                 });
                 
                 const result = await response.json();
                 
                 if (response.ok) {
                     simulationInitialized = true;
-                    showSimulationStatus(`✅ Simulation ready for ${cityName}`, 'success');
+                    showSimulationStatus(`✅ Simulation network ready for ${cityName}`, 'success');
                     document.getElementById('runSimulationBtn').disabled = false;
                 } else {
                     showSimulationStatus(`❌ ${result.error}`, 'error');
@@ -468,34 +484,30 @@
             }
             
             try {
-                showSimulationStatus('🚀 Running simulation...', 'info');
-                document.getElementById('runSimulationBtn').disabled = true;
+                const sHour = parseInt(startSlider.value);
+                const eHour = parseInt(endSlider.value);
                 
-                // Get current hour from time slider
-                const currentHour = parseInt(document.getElementById('timeSlider').value);
+                showSimulationStatus(`🚀 Computing routing & scheduling from ${sHour}:00 to ${eHour}:00...\n(This might take a while for large time spans)`, 'info');
+                document.getElementById('runSimulationBtn').disabled = true;
                 
                 const response = await fetch('/api/simulation/run', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        hour: currentHour
+                        start_hour: sHour,
+                        end_hour: eHour
                     })
                 });
                 
                 const result = await response.json();
                 
                 if (response.ok) {
-                    // Display success message with average fare
                     const avgFare = result.average_fare ? result.average_fare.toFixed(2) : '0.00';
                     const totalFare = result.total_fare ? result.total_fare.toFixed(2) : '0.00';
-                    const routesGenerated = result.routes_generated || 0;
-                    const message = `✅ ${result.message}\n📊 Average Fare: ${avgFare} | Routes: ${routesGenerated} | Total Fare: ${totalFare}`;
-                    showSimulationStatus(message, 'success');
-                    console.log(`Simulation results:`, result);
+                    const msg = `✅ ${result.message}\n📊 Demands Processed: ${result.demands_processed} | Avg Fare: ${avgFare} CHF | Total Rev: ${totalFare} CHF`;
+                    showSimulationStatus(msg, 'success');
                 } else {
-                    showSimulationStatus(`❌ ${result.error}`, 'error');
+                    showSimulationStatus(`❌ Error: ${result.detail || result.error || 'Unknown error'}`, 'error');
                 }
             } catch (error) {
                 showSimulationStatus(`❌ Simulation failed: ${error.message}`, 'error');
@@ -511,41 +523,56 @@
             statusDiv.style.display = 'block';
         }
         
-        // Update time display
-        function updateTimeDisplay() {
-            const hour = document.getElementById('timeSlider').value;
-            const formatted = hour.padStart(2, '0') + ':00';
-            document.getElementById('timeDisplay').textContent = formatted;
+      // --- Dual slider UI rendering and validation ---
+        function updateSliderUI() {
+            let startVal = parseInt(startSlider.value);
+            let endVal = parseInt(endSlider.value);
+            
+            // Validation: Start time cannot exceed end time
+            if (startVal > endVal) {
+                if (document.activeElement === startSlider) {
+                    startSlider.value = endVal;
+                    startVal = endVal;
+                } else {
+                    endSlider.value = startVal;
+                    endVal = startVal;
+                }
+            }
+            
+            // Update the middle text display
+            timeRangeDisplay.textContent = 
+                startVal.toString().padStart(2, '0') + ':00 - ' + 
+                endVal.toString().padStart(2, '0') + ':00';
+                
+            // Update the blue progress bar connecting the two points
+            const max = 23;
+            const leftPercent = (startVal / max) * 100;
+            const widthPercent = ((endVal - startVal) / max) * 100;
+            
+            sliderFill.style.left = leftPercent + '%';
+            sliderFill.style.width = widthPercent + '%';
         }
         
-        // Event listeners
-        document.getElementById('citySelect').addEventListener('change', (e) => {
-            loadCity(e.target.value);
-        });
+        // --- Bind various event listeners ---
+        startSlider.addEventListener('input', updateSliderUI);
+        endSlider.addEventListener('input', updateSliderUI);
         
-        document.getElementById('timeSlider').addEventListener('input', (e) => {
-            updateTimeDisplay();
-        });
+        // Reload the heatmap data on the map when the slider is released
+        startSlider.addEventListener('change', loadDemands);
+        endSlider.addEventListener('change', loadDemands);
         
-        document.getElementById('timeSlider').addEventListener('change', (e) => {
-            loadDemands();
-        });
+        document.getElementById('citySelect').addEventListener('change', (e) => loadCity(e.target.value));
         
         document.querySelectorAll('input[name="demandType"]').forEach(radio => {
-            radio.addEventListener('change', () => {
-                loadDemands();
-            });
+            radio.addEventListener('change', loadDemands);
         });
         
-        document.getElementById('showNetwork').addEventListener('change', () => {
-            drawNetwork();
-        });
-        
+        document.getElementById('showNetwork').addEventListener('change', drawNetwork);
         document.getElementById('runSimulationBtn').addEventListener('click', runSimulation);
         
-        // Initialize
+        -
         initMap();
-        updateTimeDisplay();
+        updateSliderUI();
         loadCities();
     </script>
 </body>

@@ -11,8 +11,8 @@ from ..actions.action import Action
 
 @dataclass
 class RouteConfig:
-    utility_function_alpha: float = 1.5
-    utility_function_phi: float = 2.0
+    utility_function_alpha: float = 1
+    utility_function_phi: float = 2
 
 
 class Route:
@@ -57,6 +57,8 @@ class Route:
         Returns:
             float: Total cost for this route.
         """
+        # print(f'self.config.utility_function_alpha::{self.config.utility_function_alpha}')
+        # print(f'self.config.utility_function_phi::{self.config.utility_function_phi}')
 
         total_fare = self._calculate_total_fare()
         total_in_vehicle_time = (

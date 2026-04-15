@@ -199,17 +199,56 @@ def init_simulation(city_name: str):
 
 @app.post("/api/simulation/run")
 def run_simulation(input_data: Dict[str, Any] | None = None):
-    """Run the simulation with given parameters"""
+    """Run the simulation with given parameters for multiple hours"""
     try:
         from src.minitransit_simulation.simulation_runner import SimulationRunnerInput
+        import json
+        from pathlib import Path
+        from datetime import datetime
+        from dataclasses import asdict  
 
         input_payload = input_data or {}
-        # Convert dictionary to SimulationRunnerInput dataclass
-        hour = input_payload.get("hour", 8)
-        simulation_input = SimulationRunnerInput(hour=hour)
+        
+        start_hour = input_payload.get("start_hour", 8)
+        end_hour = input_payload.get("end_hour", 8)
+
+        # read the start time and end time in config.json, if they exist, and override the default values
+        cfg = api_server.runner.config
+        if getattr(cfg, "start_time", None) is not None:
+            start_hour = cfg.start_time
+        if getattr(cfg, "end_time", None) is not None:
+            end_hour = cfg.end_time
+        
+        if start_hour > end_hour:
+            raise HTTPException(status_code=400, detail="start_hour cannot be greater than end_hour")
+
+        simulation_input = SimulationRunnerInput(
+            start_hour=start_hour, 
+            end_hour=end_hour
+        )
+        
+
         result = api_server.run_simulation(simulation_input)
-        return result
+        
+        result_dict = asdict(result)
+        
+        save_dir = Path("data/simulation_results")
+        save_dir.mkdir(parents=True, exist_ok=True) 
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filepath = save_dir / f"result_{start_hour}to{end_hour}_{timestamp}.json"
+        
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(result_dict, f, ensure_ascii=False, indent=4) 
+        
+        print(f"✅ {start_hour}:00 - {end_hour}:00 simulation finished.")
+        # ----------------------------------------
+        
+        return result_dict  
+        
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Simulation failed: {e}") from e
 
 

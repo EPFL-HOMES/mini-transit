@@ -30,8 +30,8 @@ class FixedRouteService(Service):
         capacity (float): Maximum capacity of each vehicle.
         stopping_time (timedelta): Time spent at each stop.
         travel_time (timedelta): Time taken to travel between hexes (per unit distance).
-        freq_period (List[Tuple[datetime, datetime, timedelta]]): List of frequency periods where each tuple contains
-            (start_time, end_time, frequency).
+        freq_period (List[Tuple[datetime, datetime, timedelta]]): List of headway periods where each tuple contains
+            (start_time, end_time, headway).
         bidirectional (bool): Whether to create reverse-direction services as well.
         base_fare (float): Base fare for the service.
     """
@@ -109,8 +109,8 @@ class FixedRouteService(Service):
         Convert frequency periods to timetables for vehicles.
 
         Args:
-            freq_period: List of tuples (start_time, end_time, frequency),
-                         where frequency is a timedelta giving headway.
+            freq_period: List of tuples (start_time, end_time, headway),
+                         where headway is a timedelta giving the departure interval.
 
         Returns:
             List[OrderedDict[int, Tuple[datetime, datetime]]]: List of timetables
@@ -119,7 +119,7 @@ class FixedRouteService(Service):
         timetables: List[TypingOrderedDict[int, Tuple[datetime, datetime]]] = []
         n = len(self.stops)
 
-        for period_start, period_end, frequency in freq_period:
+        for period_start, period_end, headway in freq_period:
             current_departure = period_start
 
             while current_departure <= period_end:
@@ -136,7 +136,7 @@ class FixedRouteService(Service):
                         self.__build_timetable_for_direction(current_departure, backward_indices)
                     )
 
-                current_departure += frequency
+                current_departure += headway
 
         return timetables
 
