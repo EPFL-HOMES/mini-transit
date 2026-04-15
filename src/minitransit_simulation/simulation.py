@@ -73,7 +73,7 @@ class Event:
         # Create new event with remaining actions
         return Event(self.demand, self.actions, new_completed)
 
-    def get_route(self) -> Route:
+    def get_route(self, config=None) -> Route:
         """
         Get the complete route from completed actions.
 
@@ -86,7 +86,9 @@ class Event:
             all_actions = self.completed_actions
         else:
             all_actions = self.completed_actions + self.actions
-        return Route(unit=self.demand.unit, actions=all_actions)
+        if config is not None:
+            return Route(unit=self.demand.unit, actions=all_actions, config=config)
+        return Route(unit=self.demand.unit, actions=all_actions,config=config)
 
     def __lt__(self, other):
         """
@@ -178,6 +180,7 @@ class Simulation:
 
             if current_event.is_complete():
                 # All actions completed, save the route
+                sim_config = getattr(self.network, 'config', None)
                 route = current_event.get_route()
                 self.completed_routes.append(route)
                 self.network.push_route(route)

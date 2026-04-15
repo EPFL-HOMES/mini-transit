@@ -199,17 +199,52 @@ def init_simulation(city_name: str):
 
 @app.post("/api/simulation/run")
 def run_simulation(input_data: Dict[str, Any] | None = None):
-    """Run the simulation with given parameters"""
+    """Run the simulation with given parameters for multiple hours"""
     try:
         from src.minitransit_simulation.simulation_runner import SimulationRunnerInput
+        import json
+        from pathlib import Path
+        from datetime import datetime
+        from dataclasses import asdict  # 
 
         input_payload = input_data or {}
-        # Convert dictionary to SimulationRunnerInput dataclass
-        hour = input_payload.get("hour", 8)
-        simulation_input = SimulationRunnerInput(hour=hour)
+        start_hour = api_server.runner.config.start_hour
+        end_hour = api_server.runner.config.end_hour
+        print(f'start_hour:{start_hour },end_hour:{end_hour}')
+        
+        #start_hour = input_payload.get("start_hour", default_start)
+        #end_hour = input_payload.get("end_hour", default_end)
+        
+
+       
+        
+        if start_hour > end_hour:
+            raise HTTPException(status_code=400, detail="start_hour cannot be greater than end_hour")
+
+        simulation_input = SimulationRunnerInput(
+            start_hour=start_hour, 
+            end_hour=end_hour
+        )
+       
+        
+      
         result = api_server.run_simulation(simulation_input)
-        return result
+        
+        result_dict = asdict(result)
+        
+
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        
+        print(f"✅ {start_hour}:00 - {end_hour}:00 simulation finished")
+        # ----------------------------------------
+        
+        return result_dict  
+        
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Simulation failed: {e}") from e
 
 
