@@ -80,6 +80,13 @@ class APIServer:
         Returns:
             SimulationRunnerResult: Output with simulation results.
         """
+        if getattr(input_json, "start_hour", 8) == 8:
+            input_json.start_hour = self.runner.config.start_hour
+            
+        if getattr(input_json, "end_hour", 8) == 8:
+            input_json.end_hour = self.runner.config.end_hour
+            
+        print(f"DEBUG: Using simulation time from config: {input_json.start_hour} to {input_json.end_hour}")
 
         try:
             result = self.runner.run_simulation(input_json)

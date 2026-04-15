@@ -323,47 +323,6 @@ class Network:
             if node not in self.closest_stop_lookup:
                 self.closest_stop_lookup[node] = (None, float("inf"))
 
-        # Build the closest stops table immediately
-        self.build_closest_stops_table()
-
-    def build_closest_stops_table(self):
-        """
-        Precomputes the closest fixed-route stop for every hex in the entire city graph.
-        Utilizes Multi-Source Dijkstra to achieve O(E log V) performance.
-        This runs only ONCE during initialization.
-        """
-        self.closest_stop_lookup = {}
-
-        # Safely check if the fixed route graph exists and has nodes
-        if not self.fixedroute_graph or len(self.fixedroute_graph.nodes) == 0:
-            return
-
-        all_stops = set(self.fixedroute_graph.nodes)
-
-        # Perform Multi-Source Dijkstra expanding from ALL bus stops simultaneously.
-        # distances: dict mapping {node_id -> shortest_distance_to_any_stop}
-        # paths: dict mapping {node_id -> [closest_stop, ... , target_node]}
-        try:
-            distances, paths = nx.multi_source_dijkstra(
-                self.graph,
-                sources=all_stops,
-                weight="length"
-            )
-
-            for node, dist in distances.items():
-                # The first element in the path array is the source stop we expanded from
-                closest_stop = paths[node][0]
-                # Store physical distance instead of time to keep it speed-agnostic
-                self.closest_stop_lookup[node] = (closest_stop, dist)
-
-        except Exception as e:
-            print(f"Warning: Failed to precompute closest stops. {e}")
-
-        # Fallback for completely isolated nodes (e.g., islands with no bridges)
-        for node in self.graph.nodes:
-            if node not in self.closest_stop_lookup:
-                self.closest_stop_lookup[node] = (None, float("inf"))
-
     def build_component_distance_table(self):
         G = self.fixedroute_graph
         components = list(nx.weakly_connected_components(G))
@@ -794,17 +753,15 @@ class Network:
                     unique_choices[signature] = route
 
         choices = list(unique_choices.values())
+        
         logits = [r.total_cost for r in choices]
 
         exp_logits = np.exp(np.array(logits))
         probabilities = exp_logits / np.sum(exp_logits)
         choice = np.random.choice(choices, p=probabilities)
+        
 
-        # 6. Apply Vehicle Lock State
-        for action in choice.actions:
-            if isinstance(action, OnDemandRide) and hasattr(action, 'vehicle') and action.vehicle is not None:
-                action.vehicle.current_location = self._safe_hex(action.end_hex)
-                action.vehicle.available_time = action.end_time
+
 
         return choice
 

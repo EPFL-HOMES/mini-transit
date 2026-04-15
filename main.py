@@ -232,16 +232,12 @@ def run_simulation(input_data: Dict[str, Any] | None = None):
         
         result_dict = asdict(result)
         
-        save_dir = Path("data/simulation_results")
-        save_dir.mkdir(parents=True, exist_ok=True) 
+
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filepath = save_dir / f"result_{start_hour}to{end_hour}_{timestamp}.json"
         
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(result_dict, f, ensure_ascii=False, indent=4) 
         
-        print(f"✅ {start_hour}:00 - {end_hour}:00 simulation finished.")
+        print(f"✅ {start_hour}:00 - {end_hour}:00 simulation finished")
         # ----------------------------------------
         
         return result_dict  

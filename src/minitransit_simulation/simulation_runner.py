@@ -15,7 +15,7 @@ from .services.fixedroute import FixedRouteService, FixedRouteServiceConfig
 from .services.ondemand import OnDemandRouteServiceConfig
 from .services.services_loader import load_services_from_dict, load_services_from_json
 from .simulation import Simulation
-
+from .primitives.route import RouteConfig
 
 @dataclass
 class SimulationRunnerConfig(NetworkConfig, FixedRouteServiceConfig, OnDemandRouteServiceConfig):
@@ -25,8 +25,8 @@ class SimulationRunnerConfig(NetworkConfig, FixedRouteServiceConfig, OnDemandRou
     unit_sizes: list[int] = field(default_factory=lambda: [5])
     seed: int | None = None
     sampling: bool = True
-    start_time: int | None = None
-    end_time: int | None = None
+    start_hour: int = 8
+    end_hour: int = 8
 
     @classmethod
     def from_json(cls, file_path: str) -> "SimulationRunnerConfig":
@@ -49,6 +49,9 @@ class SimulationRunnerConfig(NetworkConfig, FixedRouteServiceConfig, OnDemandRou
                     "unit_sizes": [5],
                     "seed": None,
                     "sampling": True,
+                    "start_time": 8,
+                    "end_time": 8,
+                    
                 }
             )
 
@@ -208,7 +211,7 @@ class SimulationRunner:
                         return val if hasattr(val, 'hex_id') else GenericHex(val)
                     # ---------------------------
 
-                    for demand_input in hr_inputs:
+                    for demand_input in hr_inputs: 
                         if demand_input.unit <= 0:
                             continue
                         demand_time = datetime(2024, 1, 1, current_hr, 0, 0)
