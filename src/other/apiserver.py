@@ -140,16 +140,14 @@ class APIServer:
                 f"Starting to save simulation results for {city_name} hours {start_hour}-{end_hour}"
                 )
 
-            # Create results directory if it doesn't exist
             results_dir = os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                 "data",
                 "simulation_results",
             )
-            print(f"Results directory: {results_dir}")
             os.makedirs(results_dir, exist_ok=True)
 
-            # Generate filename with timestamp
+            # change the rule of doc.
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{city_name}_hours{start_hour}to{end_hour}_{timestamp}.json"
             filepath = os.path.join(results_dir, filename)

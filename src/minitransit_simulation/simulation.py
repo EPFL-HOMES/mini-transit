@@ -291,6 +291,15 @@ class Simulation:
                                 if updated_event is not None:
                                     heapq.heappush(self.event_queue, updated_event)
                                 # If no next vehicle found, skip this demand (could log a warning)
+                    elif isinstance(next_action, OnDemandRide) and next_action.vehicle is not None:
+                        # Check bike availability at pickup before boarding.
+                        if self._handle_ondemand_boarding(current_event, next_action):
+                            # If no bike is available, reschedule the demand as a new one.
+                            continue
+
+                        next_event = current_event.get_next_event()
+                        if next_event is not None:
+                            heapq.heappush(self.event_queue, next_event)
                     else:
                         # Not a Ride action or no vehicle - process normally
                         next_event = current_event.get_next_event()
@@ -299,6 +308,39 @@ class Simulation:
                             heapq.heappush(self.event_queue, next_event)
 
         return self.completed_routes
+
+    def _handle_ondemand_boarding(self, event, next_action) -> bool:
+        """Attempt to board an on-demand vehicle and reschedule if unavailable."""
+        from .actions.ondemand_ride import OnDemandRide
+        from .services.ondemand import OnDemandRouteServiceDocked
+
+        if not isinstance(next_action, OnDemandRide) or next_action.vehicle is None:
+            return False
+
+        boarding_time = event.end_time
+        vehicle = next_action.vehicle
+
+        if not vehicle.is_available(boarding_time):
+            new_demand = Demand(
+                time=boarding_time,
+                start_hex=next_action.start_hex,
+                end_hex=next_action.end_hex,
+                unit=next_action.unit,
+            )
+            self.add_demand(new_demand)
+            return True
+
+        # Mark the bike as unavailable while the ride is ongoing.
+        vehicle.available_time = next_action.end_time
+
+        if isinstance(next_action.service, OnDemandRouteServiceDocked):
+            for dock in next_action.service.docking_stations:
+                if self.network._safe_id(dock.location) == self.network._safe_id(next_action.start_hex):
+                    if vehicle in dock.current_vehicles:
+                        dock.current_vehicles.remove(vehicle)
+                    break
+
+        return False
 
     def _find_next_vehicle_for_event(self, event) -> Optional["Event"]:
         """

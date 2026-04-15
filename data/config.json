@@ -1,9 +1,11 @@
 {
-    "walk_speed": 15.0,
+    "walk_speed": 150.0,
     "unit_sizes": [5],
     "seed": null,
     "sampling": true,
-    "on_demand_speed": 35.0,
+    "bike_speed": 35.0,
     "utility_function_alpha": 1,
-    "utility_function_phi": 2
+    "utility_function_phi": 2,
+    "start_time": 7,
+    "end_time": 19
 }
