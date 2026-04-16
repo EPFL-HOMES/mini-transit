@@ -88,7 +88,7 @@ class Event:
             all_actions = self.completed_actions + self.actions
         if config is not None:
             return Route(unit=self.demand.unit, actions=all_actions, config=config)
-        return Route(unit=self.demand.unit, actions=all_actions,config=config)
+        return Route(unit=self.demand.unit, actions=all_actions)
 
     def __lt__(self, other):
         """
@@ -181,7 +181,7 @@ class Simulation:
             if current_event.is_complete():
                 # All actions completed, save the route
                 sim_config = getattr(self.network, 'config', None)
-                route = current_event.get_route()
+                route = current_event.get_route(sim_config)
                 self.completed_routes.append(route)
                 self.network.push_route(route)
             else:

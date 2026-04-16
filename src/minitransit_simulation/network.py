@@ -756,8 +756,22 @@ class Network:
         
         logits = [r.total_cost for r in choices]
 
-        exp_logits = np.exp(np.array(logits))
-        probabilities = exp_logits / np.sum(exp_logits)
+        # Numerically-stable softmax: subtract max to avoid overflow/underflow
+        logits_np = np.array(logits, dtype=float)
+        if logits_np.size == 0:
+            return None
+
+        logits_max = np.max(logits_np)
+        exp_logits = np.exp(logits_np - logits_max)
+        sum_exp = np.sum(exp_logits)
+
+        # If sum_exp is zero (all logits -> -inf after subtraction) or not finite,
+        # fall back to a uniform distribution to avoid NaNs in probabilities.
+        if not np.isfinite(sum_exp) or sum_exp == 0:
+            probabilities = np.full_like(exp_logits, 1.0 / exp_logits.size)
+        else:
+            probabilities = exp_logits / sum_exp
+
         choice = np.random.choice(choices, p=probabilities)
         
 
