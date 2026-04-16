@@ -1,19 +1,21 @@
-"""
-Unified loader for both fixed route and on-demand services from JSON.
-"""
+"""Unified loader for both fixed route and on-demand services from JSON."""
+
+from __future__ import annotations
 
 import json
 import os
 from datetime import datetime, timedelta
-from typing import List
+from typing import Any, Dict, List, Sequence
 
+from ..models import NetworkModel
 from ..primitives.hex import Hex
 from .ondemand import DockingStation, OnDemandRouteServiceDocked, OnDemandVehicle
+from .service import Service
 
 
 def load_services_from_json(
-    json_path: str, network, start_time: int = 0, end_time: int = 23
-) -> List:
+    json_path: str, network: NetworkModel, start_time: int = 0, end_time: int = 23
+) -> List[Service]:
     """
     Load both fixed-route and on-demand services from JSON file.
     Args:
@@ -44,7 +46,9 @@ def load_services_from_json(
         return []
 
 
-def load_services_from_dict(data: dict, network, start_time: int = 0, end_time: int = 23) -> List:
+def load_services_from_dict(
+    data: Dict[str, Any], network: NetworkModel, start_time: int = 0, end_time: int = 23
+) -> List[Service]:
     """
     Load both fixed-route and on-demand services from a dictionary.
     Args:
@@ -81,9 +85,15 @@ def load_services_from_dict(data: dict, network, start_time: int = 0, end_time: 
 
 
 def load_fixed_route_services(
-    services_data: List, network, start_time: int = 0, end_time: int = 23
-) -> List:
-    """Load fixed route services from JSON data."""
+    services_data: Sequence[Dict[str, Any]],
+    network: NetworkModel,
+    start_time: int = 0,
+    end_time: int = 23,
+) -> List[Service]:
+    """Load fixed route services from JSON data.
+
+    Returns a list of `FixedRouteService` instances.
+    """
     from .fixedroute import FixedRouteService
 
     services = []
@@ -142,8 +152,13 @@ def load_fixed_route_services(
     return services
 
 
-def load_ondemand_services(services_data: List, network) -> List:
-    """Load on-demand services from JSON data."""
+def load_ondemand_services(
+    services_data: Sequence[Dict[str, Any]], network: NetworkModel
+) -> List[Service]:
+    """Load on-demand services from JSON data.
+
+    Returns a list of `OnDemandRouteService` (docked or dockless) instances.
+    """
     from .ondemand import OnDemandRouteServiceConfig
 
     services = []
