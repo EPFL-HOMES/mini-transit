@@ -11,7 +11,7 @@ from ..actions.action import Action
 
 @dataclass
 class RouteConfig:
-    utility_function_alpha: float = 1.5
+    utility_function_alpha: float = 1.0
     utility_function_phi: float = 2.0
 
 
@@ -40,7 +40,7 @@ class Route:
             unit (float): Number of units that took this route.
             actions: List of actions in this route (can be Action objects or dictionaries).
         """
-        self.config = config
+        self.config = config if config is not None else RouteConfig()
         self.unit = unit
         self.actions = actions
         self.num_transfers = transfers
@@ -177,11 +177,11 @@ class Route:
         for action in self.actions:
             if hasattr(action, "start_time") and hasattr(action, "end_time"):
                 # Check if action is of type Ride
-                if action.__class__.__name__ == "Ride":
+                if action.__class__.__name__ in {"Ride", "OnDemandRide"}:
                     total_in_vehicle_time += action.end_time - action.start_time
             elif isinstance(action, dict) and "start_time" in action and "end_time" in action:
                 # Check if action is of type Ride
-                if action.get("type") == "Ride":
+                if action.get("type") in {"Ride", "OnDemandRide"}:
                     total_in_vehicle_time += action["end_time"] - action["start_time"]
         return total_in_vehicle_time
 

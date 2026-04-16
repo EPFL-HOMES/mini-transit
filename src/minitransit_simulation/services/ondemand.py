@@ -115,8 +115,9 @@ class OnDemandRouteServiceDocked(OnDemandRouteService):
         capacity: float,
         network,
         docking_stations: list["DockingStation"],
+        config: OnDemandRouteServiceConfig = OnDemandRouteServiceConfig(),
     ):
-        super().__init__(name, vehicles, capacity, network)
+        super().__init__(name, vehicles, capacity, network, config)
         self.docking_stations = (
             docking_stations  # List of DockingStation objects representing docking stations
         )
@@ -196,8 +197,15 @@ class OnDemandRouteServiceDockless(OnDemandRouteService):
     Inherits from OnDemandRouteService.
     """
 
-    def __init__(self, name, vehicles: list["OnDemandVehicle"], capacity: float, network):
-        super().__init__(name, vehicles, capacity, network)
+    def __init__(
+        self,
+        name,
+        vehicles: list["OnDemandVehicle"],
+        capacity: float,
+        network,
+        config: OnDemandRouteServiceConfig = OnDemandRouteServiceConfig(),
+    ):
+        super().__init__(name, vehicles, capacity, network, config)
         # No docking stations for dockless service
 
 

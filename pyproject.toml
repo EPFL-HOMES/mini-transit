@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mini-transit-simulation"
-version = "0.1.0"
+version = "0.2.0"
 description = "Simulation designed for EPFL course CIVIL-324: Urban public transport systems."
 authors = ["Berke Argin <berke.argin@epfl.ch>"]
 readme = "README.md"

@@ -1,22 +1,28 @@
-"""
-Unified loader for both fixed route and on-demand services from JSON.
-"""
+"""Unified loader for both fixed route and on-demand services from JSON."""
+
+from __future__ import annotations
 
 import json
 import os
 from datetime import datetime, timedelta
-from typing import List
+from typing import Any, Dict, List, Sequence
 
+from ..models import NetworkModel
 from ..primitives.hex import Hex
 from .ondemand import DockingStation, OnDemandRouteServiceDocked, OnDemandVehicle
+from .service import Service
 
 
-def load_services_from_json(json_path: str, network) -> List:
+def load_services_from_json(
+    json_path: str, network: NetworkModel, start_time: int = 0, end_time: int = 23
+) -> List[Service]:
     """
     Load both fixed-route and on-demand services from JSON file.
     Args:
         json_path (str): Path to the JSON file containing services.
         network (Network): The network to which the services will be added.
+        start_time (int): Simulation start hour (inclusive).
+        end_time (int): Simulation end hour (inclusive).
     Returns:
         List: List of all service objects (both fixed route and on-demand).
     """
@@ -29,7 +35,7 @@ def load_services_from_json(json_path: str, network) -> List:
         with open(json_path, "r") as f:
             data = json.load(f)
 
-        services = load_services_from_dict(data, network)
+        services = load_services_from_dict(data, network, start_time=start_time, end_time=end_time)
         return services
 
     except Exception as e:
@@ -40,12 +46,16 @@ def load_services_from_json(json_path: str, network) -> List:
         return []
 
 
-def load_services_from_dict(data: dict, network) -> List:
+def load_services_from_dict(
+    data: Dict[str, Any], network: NetworkModel, start_time: int = 0, end_time: int = 23
+) -> List[Service]:
     """
     Load both fixed-route and on-demand services from a dictionary.
     Args:
         data (dict): Dictionary containing services data.
         network (Network): The network to which the services will be added.
+        start_time (int): Simulation start hour (inclusive).
+        end_time (int): Simulation end hour (inclusive).
     Returns:
         List: List of all service objects (both fixed route and on-demand).
     """
@@ -54,7 +64,11 @@ def load_services_from_dict(data: dict, network) -> List:
 
         # Load fixed route services
         fixed_route_services_data = data.get("fixed_route_services", [])
-        services.extend(load_fixed_route_services(fixed_route_services_data, network))
+        services.extend(
+            load_fixed_route_services(
+                fixed_route_services_data, network, start_time=start_time, end_time=end_time
+            )
+        )
 
         # Load on-demand services
         ondemand_services_data = data.get("ondemand_services", [])
@@ -70,8 +84,16 @@ def load_services_from_dict(data: dict, network) -> List:
         return []
 
 
-def load_fixed_route_services(services_data: List, network) -> List:
-    """Load fixed route services from JSON data."""
+def load_fixed_route_services(
+    services_data: Sequence[Dict[str, Any]],
+    network: NetworkModel,
+    start_time: int = 0,
+    end_time: int = 23,
+) -> List[Service]:
+    """Load fixed route services from JSON data.
+
+    Returns a list of `FixedRouteService` instances.
+    """
     from .fixedroute import FixedRouteService
 
     services = []
@@ -81,14 +103,14 @@ def load_fixed_route_services(services_data: List, network) -> List:
     default_travel_time_minutes = 2
     default_bidirectional = True
 
-    # Create frequency period for the entire day
-    day_start = datetime(2024, 1, 1, 0, 0, 0)
-    day_end = datetime(2024, 1, 1, 23, 59, 59)
+    base_date = datetime(2024, 1, 1)
 
     for service_info in services_data:
         name = service_info.get("name", "Unknown Service")
         stops_hex_ids = service_info.get("stops", [])
-        frequency_minutes = service_info.get("frequency", 10)
+        headway_list = service_info.get("headway", [10])  # list of headway (minutes) per hour
+        if not isinstance(headway_list, list):
+            headway_list = [headway_list]
         capacity = float(service_info.get("capacity", 50))
 
         stopping_time_minutes = service_info.get("stopping_time", default_stopping_time_minutes)
@@ -105,8 +127,13 @@ def load_fixed_route_services(services_data: List, network) -> List:
             print(f"Warning: Fixed route service '{name}' has no stops. Skipping.")
             continue
 
-        frequency_timedelta = timedelta(minutes=frequency_minutes)
-        freq_period = [(day_start, day_end, frequency_timedelta)]
+        # Build one freq_period tuple per hour from start_time to end_time
+        freq_period = []
+        for i, hour in enumerate(range(start_time, end_time + 1)):
+            headway_minutes = headway_list[i] if i < len(headway_list) else headway_list[-1]
+            period_start = base_date.replace(hour=hour, minute=0, second=0)
+            period_end = base_date.replace(hour=hour, minute=59, second=59)
+            freq_period.append((period_start, period_end, timedelta(minutes=headway_minutes)))
 
         fixed_route_service = FixedRouteService(
             name=name,
@@ -125,14 +152,32 @@ def load_fixed_route_services(services_data: List, network) -> List:
     return services
 
 
-def load_ondemand_services(services_data: List, network) -> List:
-    """Load on-demand services from JSON data."""
+def load_ondemand_services(
+    services_data: Sequence[Dict[str, Any]], network: NetworkModel
+) -> List[Service]:
+    """Load on-demand services from JSON data.
+
+    Returns a list of `OnDemandRouteService` (docked or dockless) instances.
+    """
+    from .ondemand import OnDemandRouteServiceConfig
+
     services = []
 
     for service_info in services_data:
         name = service_info.get("name", "Unknown On-Demand Service")
         service_type = service_info.get("type", "docked")  # "docked" or "dockless"
         capacity = float(service_info.get("capacity", 1))
+
+        # Load fare config from service JSON
+        config = OnDemandRouteServiceConfig(
+            ondemand_base_fare=float(service_info.get("ondemand_base_fare", 3.0)),
+            ondemand_time_rate_per_minute=float(
+                service_info.get("ondemand_time_rate_per_minute", 0.1)
+            ),
+            ondemand_base_time_cutoff_minutes=int(
+                service_info.get("ondemand_base_time_cutoff_minutes", 30)
+            ),
+        )
 
         # Load vehicles
         vehicles_data = service_info.get("vehicles", [])
@@ -200,6 +245,7 @@ def load_ondemand_services(services_data: List, network) -> List:
                 capacity=capacity,
                 network=network,
                 docking_stations=docking_stations,
+                config=config,
             )
 
             services.append(ondemand_service)
@@ -212,6 +258,7 @@ def load_ondemand_services(services_data: List, network) -> List:
                 vehicles=vehicles,
                 capacity=capacity,
                 network=network,
+                config=config,
             )
 
             services.append(ondemand_service)
