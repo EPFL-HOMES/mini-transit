@@ -177,11 +177,11 @@ class Route:
         for action in self.actions:
             if hasattr(action, "start_time") and hasattr(action, "end_time"):
                 # Check if action is of type Ride
-                if action.__class__.__name__ == ["Ride", "OnDemandRide"]:
+                if action.__class__.__name__ in {"Ride", "OnDemandRide"}:
                     total_in_vehicle_time += action.end_time - action.start_time
             elif isinstance(action, dict) and "start_time" in action and "end_time" in action:
                 # Check if action is of type Ride
-                if action.get("type") == ["Ride", "OnDemandRide"]:
+                if action.get("type") in {"Ride", "OnDemandRide"}:
                     total_in_vehicle_time += action["end_time"] - action["start_time"]
         return total_in_vehicle_time
 
