@@ -237,7 +237,7 @@ class Network:
                     continue
 
                 capacity = getattr(dock_d, "capacity", 100)
-                dock_vehicles = getattr(dock_d, "vehicles", [])
+                dock_vehicles = getattr(dock_d, "current_vehicles", [])
                 if len(dock_vehicles) >= capacity:
                     continue
 
