@@ -80,10 +80,10 @@ class APIServer:
         Returns:
             SimulationRunnerResult: Output with simulation results.
         """
-        if getattr(input_json, "start_hour", 8) == 8:
+        if not hasattr(input_json, "start_hour") or input_json.start_hour is None:
             input_json.start_hour = self.runner.config.start_hour
 
-        if getattr(input_json, "end_hour", 8) == 8:
+        if not hasattr(input_json, "end_hour") or input_json.end_hour is None:
             input_json.end_hour = self.runner.config.end_hour
 
         print(
