@@ -180,7 +180,7 @@ class Simulation:
 
             if current_event.is_complete():
                 # All actions completed, save the route
-                sim_config = getattr(self.network, 'config', None)
+                sim_config = getattr(self.network, "config", None)
                 route = current_event.get_route(sim_config)
                 self.completed_routes.append(route)
                 self.network.push_route(route)
@@ -338,7 +338,9 @@ class Simulation:
 
         if isinstance(next_action.service, OnDemandRouteServiceDocked):
             for dock in next_action.service.docking_stations:
-                if self.network._safe_id(dock.location) == self.network._safe_id(next_action.start_hex):
+                if self.network._safe_id(dock.location) == self.network._safe_id(
+                    next_action.start_hex
+                ):
                     if vehicle in dock.current_vehicles:
                         dock.current_vehicles.remove(vehicle)
                     break

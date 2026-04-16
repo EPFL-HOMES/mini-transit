@@ -197,7 +197,14 @@ class OnDemandRouteServiceDockless(OnDemandRouteService):
     Inherits from OnDemandRouteService.
     """
 
-    def __init__(self, name, vehicles: list["OnDemandVehicle"], capacity: float, network, config: OnDemandRouteServiceConfig = OnDemandRouteServiceConfig()):
+    def __init__(
+        self,
+        name,
+        vehicles: list["OnDemandVehicle"],
+        capacity: float,
+        network,
+        config: OnDemandRouteServiceConfig = OnDemandRouteServiceConfig(),
+    ):
         super().__init__(name, vehicles, capacity, network, config)
         # No docking stations for dockless service
 

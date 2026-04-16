@@ -11,7 +11,9 @@ from ..primitives.hex import Hex
 from .ondemand import DockingStation, OnDemandRouteServiceDocked, OnDemandVehicle
 
 
-def load_services_from_json(json_path: str, network, start_time: int = 0, end_time: int = 23) -> List:
+def load_services_from_json(
+    json_path: str, network, start_time: int = 0, end_time: int = 23
+) -> List:
     """
     Load both fixed-route and on-demand services from JSON file.
     Args:
@@ -58,7 +60,11 @@ def load_services_from_dict(data: dict, network, start_time: int = 0, end_time: 
 
         # Load fixed route services
         fixed_route_services_data = data.get("fixed_route_services", [])
-        services.extend(load_fixed_route_services(fixed_route_services_data, network, start_time=start_time, end_time=end_time))
+        services.extend(
+            load_fixed_route_services(
+                fixed_route_services_data, network, start_time=start_time, end_time=end_time
+            )
+        )
 
         # Load on-demand services
         ondemand_services_data = data.get("ondemand_services", [])
@@ -74,7 +80,9 @@ def load_services_from_dict(data: dict, network, start_time: int = 0, end_time: 
         return []
 
 
-def load_fixed_route_services(services_data: List, network, start_time: int = 0, end_time: int = 23) -> List:
+def load_fixed_route_services(
+    services_data: List, network, start_time: int = 0, end_time: int = 23
+) -> List:
     """Load fixed route services from JSON data."""
     from .fixedroute import FixedRouteService
 
@@ -148,8 +156,12 @@ def load_ondemand_services(services_data: List, network) -> List:
         # Load fare config from service JSON
         config = OnDemandRouteServiceConfig(
             ondemand_base_fare=float(service_info.get("ondemand_base_fare", 3.0)),
-            ondemand_time_rate_per_minute=float(service_info.get("ondemand_time_rate_per_minute", 0.1)),
-            ondemand_base_time_cutoff_minutes=int(service_info.get("ondemand_base_time_cutoff_minutes", 30)),
+            ondemand_time_rate_per_minute=float(
+                service_info.get("ondemand_time_rate_per_minute", 0.1)
+            ),
+            ondemand_base_time_cutoff_minutes=int(
+                service_info.get("ondemand_base_time_cutoff_minutes", 30)
+            ),
         )
 
         # Load vehicles
