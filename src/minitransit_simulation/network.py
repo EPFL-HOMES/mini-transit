@@ -686,7 +686,9 @@ class Network:
                 self._safe_id(dock_p_obj), self._safe_id(dock_e_obj)
             )
             drive_time = bike_dist / bike_speed
-            ride_path_2 = self.get_walk_shortest_path(dock_p_obj, dock_e_obj)
+            _, ride_path_2 = self.compute_walk_time(
+                graph, dock_p_obj, dock_e_obj, walk_speed
+            )
             ride2 = OnDemandRide(
                 start_time=current_time,
                 end_time=current_time + timedelta(hours=drive_time),
