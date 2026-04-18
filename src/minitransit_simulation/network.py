@@ -111,17 +111,15 @@ class Network:
             return self._walk_time_path_cache[cache_key][1]
         try:
             path = nx.shortest_path(self.graph, cache_key[0], cache_key[1])
-            # Compute and cache the distance alongside the path to avoid
-            # redundant shortest_path_length calls in compute_walk_time later
-            try:
-                distance = nx.shortest_path_length(
-                    self.graph, source=cache_key[0], target=cache_key[1], weight="length"
-                )
-            except Exception:
-                distance = float("inf")
+            # Compute distance by summing edge weights along the returned path so
+            # we avoid a second full Dijkstra via shortest_path_length.
+            distance = sum(
+                self.graph[u][v].get("length", 1)
+                for u, v in zip(path[:-1], path[1:])
+            )
             self._walk_time_path_cache[cache_key] = (distance, path)
             return path
-        except nx.NetworkXNoPath:
+        except (nx.NetworkXNoPath, nx.NodeNotFound):
             self._walk_time_path_cache[cache_key] = (float("inf"), None)
             return None
 
