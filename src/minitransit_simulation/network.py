@@ -113,10 +113,7 @@ class Network:
             path = nx.shortest_path(self.graph, cache_key[0], cache_key[1])
             # Compute distance by summing edge weights along the returned path so
             # we avoid a second full Dijkstra via shortest_path_length.
-            distance = sum(
-                self.graph[u][v].get("length", 1)
-                for u, v in zip(path[:-1], path[1:])
-            )
+            distance = sum(self.graph[u][v].get("length", 1) for u, v in zip(path[:-1], path[1:]))
             self._walk_time_path_cache[cache_key] = (distance, path)
             return path
         except (nx.NetworkXNoPath, nx.NodeNotFound):
@@ -684,9 +681,7 @@ class Network:
                 self._safe_id(dock_p_obj), self._safe_id(dock_e_obj)
             )
             drive_time = bike_dist / bike_speed
-            _, ride_path_2 = self.compute_walk_time(
-                graph, dock_p_obj, dock_e_obj, walk_speed
-            )
+            _, ride_path_2 = self.compute_walk_time(graph, dock_p_obj, dock_e_obj, walk_speed)
             ride2 = OnDemandRide(
                 start_time=current_time,
                 end_time=current_time + timedelta(hours=drive_time),
