@@ -110,8 +110,19 @@ class Network:
         if cache_key in self._walk_time_path_cache:
             return self._walk_time_path_cache[cache_key][1]
         try:
-            return nx.shortest_path(self.graph, cache_key[0], cache_key[1])
+            path = nx.shortest_path(self.graph, cache_key[0], cache_key[1])
+            # Compute and cache the distance alongside the path to avoid
+            # redundant shortest_path_length calls in compute_walk_time later
+            try:
+                distance = nx.shortest_path_length(
+                    self.graph, source=cache_key[0], target=cache_key[1], weight="length"
+                )
+            except Exception:
+                distance = float("inf")
+            self._walk_time_path_cache[cache_key] = (distance, path)
+            return path
         except nx.NetworkXNoPath:
+            self._walk_time_path_cache[cache_key] = (float("inf"), None)
             return None
 
     def compute_walk_time(self, graph, from_hex, to_hex, walk_speed):
