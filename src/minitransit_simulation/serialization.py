@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from .actions.action import Action
+from .actions.ondemand_ride import OnDemandRide
 from .actions.ride import Ride
 from .actions.wait import Wait
 from .actions.walk import Walk
@@ -85,6 +86,15 @@ def serialize_action(action: Action) -> dict:
                 "service_name": action.service.name if action.service else None,
             }
         )
+    elif isinstance(action, OnDemandRide):
+        action_data.update(
+            {
+                "start_hex": action.start_hex.hex_id,
+                "end_hex": action.end_hex.hex_id,
+                "service_name": action.service.name if action.service else None,
+                "ride_path": getattr(action, "ride_path", None),
+            }
+        )
     elif isinstance(action, Wait):
         # For Wait, location is the hex where waiting occurs
         action_data.update(
@@ -158,6 +168,9 @@ def serialize_action_dict(action: dict) -> dict:
                     ),
                 }
             )
+        # include ride_path if present in dictionary form (on-demand actions)
+        if "ride_path" in action:
+            action_data["ride_path"] = action["ride_path"]
             # Add service name if available
             if "service" in action and action["service"]:
                 service = action["service"]

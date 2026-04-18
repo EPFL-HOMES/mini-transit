@@ -349,6 +349,8 @@ class SimulationRunner:
                                 action_path = [start_id, end_id]
 
                         action_data["path"] = action_path if action_path else [start_id, end_id]
+                        _rp = getattr(action, "ride_path", None)
+                        action_data["ride_path"] = _rp if _rp else action_data["path"]
 
                         # ---------------------------------------------------------
                         # NEW: Inject Distance and Speed metrics for Bike evaluation

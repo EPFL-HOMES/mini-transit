@@ -36,6 +36,7 @@ class OnDemandRide(Action):
         unit: int,
         service: Service,
         vehicle=None,
+        ride_path: list[int] | None = None,
     ):
         """
         Initialize an OnDemandRide action.
@@ -53,4 +54,6 @@ class OnDemandRide(Action):
         self.end_hex = end_hex
         self.service = service
         self.vehicle = vehicle  # Store vehicle reference
+        self.ride_path = ride_path
+        self.path = ride_path
         self.fare = self.service.get_fare(start_hex, end_hex, start_time)
