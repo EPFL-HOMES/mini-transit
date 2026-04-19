@@ -10,6 +10,7 @@ from .primitives.hex import Hex
 from .primitives.route import Route
 from .serialization import (
     BaseSerializedAction,
+    OnDemandRideSerializedAction,
     RideSerializedAction,
     WaitSerializedAction,
     WalkSerializedAction,
@@ -54,9 +55,11 @@ __all__ = [
     "BaseSerializedAction",
     "WalkSerializedAction",
     "RideSerializedAction",
+    "OnDemandRideSerializedAction",
     "WaitSerializedAction",
     "serialize_action",
-    "serialize_action_dict" "FixedRouteService",
+    "serialize_action_dict",
+    "FixedRouteService",
     "FixedRouteServiceConfig",
     "fixed_route_services_from_json",
     "fixed_route_services_from_dict",

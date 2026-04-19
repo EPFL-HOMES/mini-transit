@@ -349,6 +349,13 @@ class SimulationRunner:
                                 action_path = [start_id, end_id]
 
                         action_data["path"] = action_path if action_path else [start_id, end_id]
+                        _rp = action_data.get("ride_path")
+                        if not _rp:
+                            if isinstance(action, dict):
+                                _rp = action.get("ride_path")
+                            else:
+                                _rp = getattr(action, "ride_path", None)
+                        action_data["ride_path"] = _rp if _rp else action_data["path"]
 
                         # ---------------------------------------------------------
                         # NEW: Inject Distance and Speed metrics for Bike evaluation

@@ -110,8 +110,14 @@ class Network:
         if cache_key in self._walk_time_path_cache:
             return self._walk_time_path_cache[cache_key][1]
         try:
-            return nx.shortest_path(self.graph, cache_key[0], cache_key[1])
-        except nx.NetworkXNoPath:
+            path = nx.shortest_path(self.graph, cache_key[0], cache_key[1])
+            # Compute distance by summing edge weights along the returned path so
+            # we avoid a second full Dijkstra via shortest_path_length.
+            distance = sum(self.graph[u][v].get("length", 1) for u, v in zip(path[:-1], path[1:]))
+            self._walk_time_path_cache[cache_key] = (distance, path)
+            return path
+        except (nx.NetworkXNoPath, nx.NodeNotFound):
+            self._walk_time_path_cache[cache_key] = (float("inf"), None)
             return None
 
     def compute_walk_time(self, graph, from_hex, to_hex, walk_speed):
@@ -559,6 +565,7 @@ class Network:
                 self._safe_id(dock_s_obj), self._safe_id(dock_d_obj)
             )
             drive_time = bike_dist / bike_speed
+            ride_path_1 = self.get_walk_shortest_path(dock_s_obj, dock_d_obj)
             ride1 = OnDemandRide(
                 start_time=current_time,
                 end_time=current_time + timedelta(hours=drive_time),
@@ -567,6 +574,7 @@ class Network:
                 unit=demand.unit,
                 service=docked_service,
                 vehicle=vehicle,
+                ride_path=ride_path_1,
             )
             actions.append(ride1)
             current_time = ride1.end_time
@@ -673,6 +681,7 @@ class Network:
                 self._safe_id(dock_p_obj), self._safe_id(dock_e_obj)
             )
             drive_time = bike_dist / bike_speed
+            _, ride_path_2 = self.compute_walk_time(graph, dock_p_obj, dock_e_obj, walk_speed)
             ride2 = OnDemandRide(
                 start_time=current_time,
                 end_time=current_time + timedelta(hours=drive_time),
@@ -681,6 +690,7 @@ class Network:
                 unit=demand.unit,
                 service=docked_service,
                 vehicle=vehicle,
+                ride_path=ride_path_2,
             )
             actions.append(ride2)
             current_time = ride2.end_time
@@ -865,6 +875,7 @@ class Network:
                             else demand_time + timedelta(hours=drive_time)
                         )
 
+                        ride_path_local = self.get_walk_shortest_path(b_start_loc, b_end_loc)
                         ride_action = OnDemandRide(
                             start_time=actions[-1].end_time if actions else demand_time,
                             end_time=arrival_time,
@@ -873,6 +884,7 @@ class Network:
                             unit=demand.unit,
                             service=service,
                             vehicle=vehicle,
+                            ride_path=ride_path_local,
                         )
                         actions.append(ride_action)
 
@@ -939,6 +951,7 @@ class Network:
                     else demand_time + timedelta(hours=drive_time)
                 )
 
+                ride_path_local = self.get_walk_shortest_path(v_loc, end)
                 ride_action = OnDemandRide(
                     start_time=actions[-1].end_time if actions else demand_time,
                     end_time=arrival_time,
@@ -947,6 +960,7 @@ class Network:
                     unit=demand.unit,
                     service=service,
                     vehicle=best_vehicle,
+                    ride_path=ride_path_local,
                 )
                 actions.append(ride_action)
 

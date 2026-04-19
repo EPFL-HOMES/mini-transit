@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from .actions.action import Action
+from .actions.ondemand_ride import OnDemandRide
 from .actions.ride import Ride
 from .actions.wait import Wait
 from .actions.walk import Walk
@@ -37,6 +38,16 @@ class RideSerializedAction(BaseSerializedAction):
 
 
 @dataclass
+class OnDemandRideSerializedAction(BaseSerializedAction):
+    """Fields specific to a serialized 'OnDemandRide' action."""
+
+    start_hex: int
+    end_hex: int
+    service_name: str | None = None  # Name of the on-demand service used
+    ride_path: list[int] | None = None  # Hex-by-hex path for the on-demand ride
+
+
+@dataclass
 class WaitSerializedAction(BaseSerializedAction):
     """Fields specific to a serialized 'Wait' action."""
 
@@ -45,7 +56,12 @@ class WaitSerializedAction(BaseSerializedAction):
 
 
 # Type alias for convenience when typing a list of actions
-SerializedAction = WalkSerializedAction | RideSerializedAction | WaitSerializedAction
+SerializedAction = (
+    WalkSerializedAction
+    | RideSerializedAction
+    | OnDemandRideSerializedAction
+    | WaitSerializedAction
+)
 
 
 def serialize_action(action: Action) -> dict:
@@ -83,6 +99,15 @@ def serialize_action(action: Action) -> dict:
                 "start_hex": action.start_hex.hex_id,
                 "end_hex": action.end_hex.hex_id,
                 "service_name": action.service.name if action.service else None,
+            }
+        )
+    elif isinstance(action, OnDemandRide):
+        action_data.update(
+            {
+                "start_hex": action.start_hex.hex_id,
+                "end_hex": action.end_hex.hex_id,
+                "service_name": action.service.name if action.service else None,
+                "ride_path": getattr(action, "ride_path", None),
             }
         )
     elif isinstance(action, Wait):
@@ -158,11 +183,29 @@ def serialize_action_dict(action: dict) -> dict:
                     ),
                 }
             )
-            # Add service name if available
-            if "service" in action and action["service"]:
-                service = action["service"]
-                service_name = service.name if hasattr(service, "name") else None
-                action_data["service_name"] = service_name
+        if "service" in action and action["service"]:
+            service = action["service"]
+            action_data["service_name"] = service.name if hasattr(service, "name") else None
+    elif action_type == "OnDemandRide":
+        if "start_hex" in action and "end_hex" in action:
+            action_data.update(
+                {
+                    "start_hex": (
+                        action["start_hex"].hex_id
+                        if hasattr(action["start_hex"], "hex_id")
+                        else action["start_hex"]
+                    ),
+                    "end_hex": (
+                        action["end_hex"].hex_id
+                        if hasattr(action["end_hex"], "hex_id")
+                        else action["end_hex"]
+                    ),
+                }
+            )
+        if "service" in action and action["service"]:
+            service = action["service"]
+            action_data["service_name"] = service.name if hasattr(service, "name") else None
+        action_data["ride_path"] = action.get("ride_path")
     elif action_type == "Wait":
         if "location" in action:
             location = action["location"]
