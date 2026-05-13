@@ -157,6 +157,14 @@ class Simulation:
             # No valid route found, skip this demand
             return
 
+        # Pre-reserve only if the first action is an OnDemandRide (person is already at the bike).
+        # For Walk → OnDemandRide routes, the person may arrive to find no bike available;
+        # that case is handled at boarding time in _handle_ondemand_boarding.
+        from .actions.ondemand_ride import OnDemandRide
+        first_action = route.actions[0]
+        if isinstance(first_action, OnDemandRide) and first_action.vehicle is not None:
+            first_action.vehicle.available_time = first_action.end_time
+
         # Create event with all actions from the route
         event = Event(demand, route.actions)
 
@@ -225,8 +233,11 @@ class Simulation:
                                     docking_station.dock_vehicle(vehicle)
                                     # Update vehicle's location to match docking station
                                     vehicle.current_location = docking_station.location
-                                    # Make vehicle available immediately (it's at the dock now)
-                                    vehicle.available_time = current_event.end_time
+                                    # Make vehicle available - never roll back a pre-reservation
+                                    # made by add_demand for a future trip already in the queue.
+                                    vehicle.available_time = max(
+                                        vehicle.available_time, current_event.end_time
+                                    )
                                 except Exception:
                                     # Docking station is full - vehicle remains at location but not docked
                                     # In real system, might need to handle this differently
@@ -295,9 +306,9 @@ class Simulation:
                                     heapq.heappush(self.event_queue, updated_event)
                                 # If no next vehicle found, skip this demand (could log a warning)
                     elif isinstance(next_action, OnDemandRide) and next_action.vehicle is not None:
-                        # Check bike availability at pickup before boarding.
+                        # Person just arrived at bike station after walking; check if bike is still available.
                         if self._handle_ondemand_boarding(current_event, next_action):
-                            # If no bike is available, reschedule the demand as a new one.
+                            # Bike was taken by someone else - rescheduled as new demand from bike station.
                             continue
 
                         next_event = current_event.get_next_event()
@@ -312,39 +323,46 @@ class Simulation:
 
         return self.completed_routes
 
-    def _handle_ondemand_boarding(self, event, next_action) -> bool:
-        """Attempt to board an on-demand vehicle and reschedule if unavailable."""
+    def _handle_ondemand_boarding(self, current_event, next_action) -> bool:
+        """
+        Check bike availability when a person arrives at the bike station after walking.
+        If the bike is no longer available, generate a new demand from the bike station
+        to the original destination, so the person can find an alternative route.
+        Returns True if the original event should be dropped (new demand was scheduled).
+        """
         from .actions.ondemand_ride import OnDemandRide
-        from .services.ondemand import OnDemandRouteServiceDocked
 
         if not isinstance(next_action, OnDemandRide) or next_action.vehicle is None:
             return False
 
-        boarding_time = event.end_time
+        boarding_time = current_event.end_time
         vehicle = next_action.vehicle
 
         if not vehicle.is_available(boarding_time):
+            # Bike was taken - person is now at the bike station with no bike.
+            # Generate a new demand from the bike station to the original destination.
             new_demand = Demand(
                 time=boarding_time,
-                start_hex=next_action.start_hex,
-                end_hex=next_action.end_hex,
+                start_hex=next_action.start_hex,          # current position: bike station
+                end_hex=current_event.demand.end_hex,     # original destination
                 unit=next_action.unit,
             )
             self.add_demand(new_demand)
             return True
 
-        # Mark the bike as unavailable while the ride is ongoing.
-        vehicle.available_time = next_action.end_time
+        # Bike is available - update all remaining action timestamps to actual arrival time,
+        # then pre-reserve the vehicle.
+        from datetime import timedelta
 
-        if isinstance(next_action.service, OnDemandRouteServiceDocked):
-            for dock in next_action.service.docking_stations:
-                if self.network._safe_id(dock.location) == self.network._safe_id(
-                    next_action.start_hex
-                ):
-                    if vehicle in dock.current_vehicles:
-                        dock.current_vehicles.remove(vehicle)
-                    break
+        current_time = boarding_time
+        # current_event.actions[0] is the Walk that just ended; actions[1] onwards need updating.
+        for action in current_event.actions[1:]:
+            duration = action.end_time - action.start_time
+            action.start_time = current_time
+            action.end_time = current_time + duration
+            current_time = action.end_time
 
+        vehicle.available_time = max(vehicle.available_time, next_action.end_time)
         return False
 
     def _find_next_vehicle_for_event(self, event) -> Optional["Event"]:
